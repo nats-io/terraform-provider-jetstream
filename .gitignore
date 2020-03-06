@@ -1,0 +1,5 @@
+terraform-provider-jetstream
+.idea
+terraform.tfstate.backup
+terraform.tfstate
+.terraform
