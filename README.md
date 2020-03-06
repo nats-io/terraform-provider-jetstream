@@ -47,8 +47,8 @@ output "ORDERS_SUBJECTS" {
 
 TODO:
 
- - [*] Streams CRUD
- - [*] Consumers CRD - consumers do not support update
+ - [x] Streams CRUD
+ - [x] Consumers CRD - consumers do not support update
  - [ ] Stream Templates CRD - templates do not support update
  - [ ] Data Sources
  - [ ] Unit Testing
