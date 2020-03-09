@@ -157,32 +157,6 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg server.Consumer
 	return cfg, nil
 }
 
-func parseStreamID(id string) (string, error) {
-	parts := strings.Split(id, "_")
-	if len(parts) != 3 {
-		return "", fmt.Errorf("invalid stream id %q", id)
-	}
-
-	if parts[0] != "JETSTREAM" || parts[1] != "STREAM" {
-		return "", fmt.Errorf("invalid stream id %q", id)
-	}
-
-	return parts[2], nil
-}
-
-func parseConsumerID(id string) (stream string, consumer string, err error) {
-	parts := strings.Split(id, "_")
-	if len(parts) != 5 {
-		return "", "", fmt.Errorf("invalid consumer id %q", id)
-	}
-
-	if parts[0] != "JETSTREAM" || parts[1] != "STREAM" || parts[3] != "CONSUMER" {
-		return "", "", fmt.Errorf("invalid consumer id %q", id)
-	}
-
-	return parts[2], parts[4], nil
-}
-
 func resourceConsumerCreate(d *schema.ResourceData, m interface{}) error {
 	cfg, err := consumerConfigFromResourceData(d)
 	if err != nil {

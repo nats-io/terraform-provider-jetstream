@@ -3,3 +3,4 @@ terraform-provider-jetstream
 terraform.tfstate.backup
 terraform.tfstate
 .terraform
+dist
