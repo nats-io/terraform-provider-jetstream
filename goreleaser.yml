@@ -1,5 +1,5 @@
 builds:
-  - binary: terraform-provider-jetstream_{{.Version}}
+  - binary: terraform-provider-jetstream_v{{.Version}}
     env:
       - CGO_ENABLED=0
     goos:
