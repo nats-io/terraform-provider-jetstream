@@ -1,5 +1,11 @@
 This is a work in progress Terraform Provider to manage NATS JetStream.
 
+## Installation
+
+To install download the archive for your platform from the [Releases Page](https://github.com/nats-io/terraform-provider-jetstream/releases) and place the plugin in your plugin directory, for example in `~/.terraform.d/plugins/terraform-provider-jetstream_v0.0.1`.  After that `terraform init` will find it.
+ 
+## Usage
+
 To recreate the `ORDERS` example from the [JetStream README](https://github.com/nats-io/jetstream#configuration) you can use the code below:
 
 ```terraform
@@ -53,11 +59,3 @@ output "ORDERS_SUBJECTS" {
   value = jetstream_stream.ORDERS.subjects
 }
 ```
-
-TODO:
-
- - [x] Streams CRUD
- - [x] Consumers CRD - consumers do not support update
- - [x] Stream Templates CRD - templates do not support update
- - [ ] Data Sources
- - [ ] Unit Testing
