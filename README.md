@@ -58,6 +58,6 @@ TODO:
 
  - [x] Streams CRUD
  - [x] Consumers CRD - consumers do not support update
- - [ ] Stream Templates CRD - templates do not support update
+ - [x] Stream Templates CRD - templates do not support update
  - [ ] Data Sources
  - [ ] Unit Testing
