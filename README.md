@@ -2,12 +2,13 @@ This is a work in progress Terraform Provider to manage NATS JetStream.
 
 To recreate the `ORDERS` example from the [JetStream README](https://github.com/nats-io/jetstream#configuration) you can use the code below:
 
-```hcl-terraform
+```terraform
 provider "jetstream" {
-  servers     = "connect.ngs.global:4222"
-  credentials = "/Users/rip/work/devcluster/accounts/jsadmin.creds"
+  servers = "connect.ngs.global:4222"
+  credentials = "ngs_stream_admin.creds"
 }
 
+// ORDERS setup from the JetStream README
 resource "jetstream_stream" "ORDERS" {
   name     = "ORDERS"
   subjects = ["ORDERS.*"]
@@ -37,6 +38,15 @@ resource "jetstream_consumer" "ORDERS_MONITOR" {
   deliver_last     = true
   ack_policy       = "none"
   delivery_subject = "monitor.ORDERS"
+}
+
+// Stream Template that creates JS_1H_x streams based on activity in the JS.1H.* subjects
+resource "jetstream_stream_template" "ONE_HOUR" {
+  name        = "JS_1H"
+  subjects    = ["JS.1H.*"]
+  storage     = "file"
+  max_age     = 60 * 60
+  max_streams = 60
 }
 
 output "ORDERS_SUBJECTS" {

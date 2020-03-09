@@ -1,11 +1,17 @@
 package jetstream
 
 import (
+	"regexp"
+
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/terraform"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
 )
+
+var streamIdRegex = regexp.MustCompile("^JETSTREAM_STREAM_(.+)$")
+var consumerIdRegex = regexp.MustCompile("^JETSTREAM_STREAM_(.+?)_CONSUMER_(.+)$")
+var streamTemplateIdRegex = regexp.MustCompile("^JETSTREAM_STREAMTEMPLATE_(.+)$")
 
 func Provider() terraform.ResourceProvider {
 	return &schema.Provider{
@@ -23,8 +29,9 @@ func Provider() terraform.ResourceProvider {
 		},
 
 		ResourcesMap: map[string]*schema.Resource{
-			"jetstream_stream":   resourceStream(),
-			"jetstream_consumer": resourceConsumer(),
+			"jetstream_stream":          resourceStream(),
+			"jetstream_consumer":        resourceConsumer(),
+			"jetstream_stream_template": resourceStreamTemplate(),
 		},
 
 		ConfigureFunc: providerConfigure,
