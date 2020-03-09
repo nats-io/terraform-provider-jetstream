@@ -19,11 +19,13 @@ func Provider() terraform.ResourceProvider {
 			"servers": {
 				Type:        schema.TypeString,
 				Required:    true,
+				Description: "Comma separated list of NATS servers to connect to",
 				DefaultFunc: schema.EnvDefaultFunc("NATS_URL", nil),
 			},
 			"credentials": {
 				Type:        schema.TypeString,
 				Optional:    true,
+				Description: "Path to the NATS 2.0 credentials file to use for authentication",
 				DefaultFunc: schema.EnvDefaultFunc("NATS_CREDS", nil),
 			},
 		},
