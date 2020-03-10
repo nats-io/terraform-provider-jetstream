@@ -88,3 +88,9 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg server.StreamConf
 		NoAck:        !d.Get("ack").(bool),
 	}, nil
 }
+
+func wipeSlice(buf []byte) {
+	for i := range buf {
+		buf[i] = 'x'
+	}
+}

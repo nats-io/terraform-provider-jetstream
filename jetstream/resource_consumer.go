@@ -253,10 +253,18 @@ func resourceConsumerDelete(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	cons, err := jsm.LoadConsumer(streamName, durableName)
+	known, err := jsm.IsKnownConsumer(streamName, durableName)
 	if err != nil {
+		return err
+	}
+	if !known {
 		d.SetId("")
 		return nil
+	}
+
+	cons, err := jsm.LoadConsumer(streamName, durableName)
+	if err != nil {
+		return err
 	}
 
 	return cons.Delete()

@@ -21,6 +21,7 @@ provider "jetstream" {
 
  * `servers` - Comma separated list of servers to connect to
  * `credentials` - (optional) path to the credentials file to use
+ * `credential_data` - (optional) the credentials as a string
 
 ## jetstream_stream
 
