@@ -184,7 +184,19 @@ func resourceStreamTemplateRead(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceStreamTemplateDelete(d *schema.ResourceData, m interface{}) error {
-	name := d.Get("name").(string)
+	name, err := parseStreamTemplateID(d.Id())
+	if err != nil {
+		return err
+	}
+
+	known, err := jsm.IsKnownStreamTemplate(name)
+	if err != nil {
+		return err
+	}
+	if !known {
+		d.SetId("")
+		return nil
+	}
 
 	str, err := jsm.LoadStreamTemplate(name)
 	if err != nil {

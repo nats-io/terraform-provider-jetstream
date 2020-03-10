@@ -162,10 +162,19 @@ func resourceStreamRead(d *schema.ResourceData, m interface{}) error {
 
 func resourceStreamUpdate(d *schema.ResourceData, m interface{}) error {
 	name := d.Get("name").(string)
-	str, err := jsm.LoadStream(name)
+
+	known, err := jsm.IsKnownStream(name)
 	if err != nil {
+		return err
+	}
+	if !known {
 		d.SetId("")
 		return nil
+	}
+
+	str, err := jsm.LoadStream(name)
+	if err != nil {
+		return err
 	}
 
 	cfg, err := streamConfigFromResourceData(d)
@@ -184,10 +193,18 @@ func resourceStreamUpdate(d *schema.ResourceData, m interface{}) error {
 func resourceStreamDelete(d *schema.ResourceData, m interface{}) error {
 	name := d.Get("name").(string)
 
-	str, err := jsm.LoadStream(name)
+	known, err := jsm.IsKnownStream(name)
 	if err != nil {
+		return err
+	}
+	if !known {
 		d.SetId("")
 		return nil
+	}
+
+	str, err := jsm.LoadStream(name)
+	if err != nil {
+		return err
 	}
 
 	return str.Delete()
