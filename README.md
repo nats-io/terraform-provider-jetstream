@@ -22,19 +22,6 @@ provider "jetstream" {
 }
 ```
 
-This also lets you store the data in Vault, for example:
-
-```terraform
-data "vault_generic_secret" "jetstream_credential" {
-  path = "secret/jetstream_credential"
-}
-
-provider "jetstream" {
-  servers = "connect.ngs.global"
-  credential_data = data.vault_generic_secret.jetstream_credential.data["ngs_jetstream_admin"]
-}
-```
-
 A locked down user that can only admin JetStream but not retrieve any data stored in JetStream looks like this:
 
 ```
@@ -67,6 +54,27 @@ A locked down user that can only admin JetStream but not retrieve any data store
 │ Time                 │ Any                                                      │
 ╰──────────────────────┴──────────────────────────────────────────────────────────╯
 ```
+
+Here's a command to create this using `nsc`, note replace the `DemoAccount` and `1M` strings with your account name and desired expiry time:
+
+```
+$ nsc add user -a DemoAccount
+--expiry 1M \
+--name ngs_jetstream_admin \
+--allow-pub '$JS.STREAM.*.CONSUMER.*.CREATE' \
+--allow-pub '$JS.STREAM.*.CONSUMER.*.DELETE' \
+--allow-pub '$JS.STREAM.*.CONSUMER.*.INFO' \
+--allow-pub '$JS.STREAM.*.CONSUMERS' \
+--allow-pub '$JS.STREAM.*.CREATE' \
+--allow-pub '$JS.STREAM.*.DELETE' \
+--allow-pub '$JS.STREAM.*.INFO' \
+--allow-pub '$JS.STREAM.*.UPDATE' \
+--allow-pub '$JS.STREAM.LIST' \
+--allow-pub '$JS.TEMPLATE.>' \
+--allow-sub '_INBOX.>'
+```
+
+This will create the credential in `~/.nkeys/creds/synadia/MyAccount/ngs_jetstream_admin.creds`
 
 ## Provider
 

@@ -14,6 +14,9 @@ func resourceStreamTemplate() *schema.Resource {
 		Create: resourceStreamTemplateCreate,
 		Read:   resourceStreamTemplateRead,
 		Delete: resourceStreamTemplateDelete,
+		Importer: &schema.ResourceImporter{
+			State: schema.ImportStatePassthrough,
+		},
 
 		Schema: map[string]*schema.Schema{
 			"name": &schema.Schema{

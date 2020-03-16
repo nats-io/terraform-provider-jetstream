@@ -14,6 +14,9 @@ func resourceStream() *schema.Resource {
 		Read:   resourceStreamRead,
 		Update: resourceStreamUpdate,
 		Delete: resourceStreamDelete,
+		Importer: &schema.ResourceImporter{
+			State: schema.ImportStatePassthrough,
+		},
 
 		Schema: map[string]*schema.Schema{
 			"name": &schema.Schema{
@@ -128,16 +131,22 @@ func resourceStreamRead(d *schema.ResourceData, m interface{}) error {
 		return fmt.Errorf("could not load stream %q: %s", name, err)
 	}
 
+	maxAge := str.MaxAge().Seconds()
+	if maxAge == 0 {
+		maxAge = -1
+	}
+
 	d.Set("name", str.Name())
 	d.Set("subjects", str.Subjects())
 	d.Set("max_consumers", str.MaxConsumers())
 	d.Set("max_msgs", int(str.MaxMsgs()))
 	d.Set("max_age", str.MaxAge().Seconds())
+	d.Set("max_bytes", str.MaxBytes())
 	d.Set("max_msg_size", int(str.MaxMsgSize()))
 	d.Set("replicas", str.Replicas())
 	d.Set("ack", !str.NoAck())
 
-	if str.MaxAge() == -1 {
+	if str.MaxAge() == -1 || str.MaxAge() == 0 {
 		d.Set("max_age", "-1")
 	}
 
