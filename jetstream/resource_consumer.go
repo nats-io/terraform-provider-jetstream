@@ -17,6 +17,9 @@ func resourceConsumer() *schema.Resource {
 		Create: resourceConsumerCreate,
 		Read:   resourceConsumerRead,
 		Delete: resourceConsumerDelete,
+		Importer: &schema.ResourceImporter{
+			State: schema.ImportStatePassthrough,
+		},
 
 		Schema: map[string]*schema.Schema{
 			"stream_id": &schema.Schema{
