@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
+	"github.com/nats-io/jsm.go/api"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
-	"github.com/nats-io/nats-server/v2/server"
 )
 
 func parseStreamID(id string) (string, error) {
@@ -48,24 +48,24 @@ func validateStorageTypeString() schema.SchemaValidateFunc {
 	return validation.StringInSlice([]string{"file", "memory"}, false)
 }
 
-func streamConfigFromResourceData(d *schema.ResourceData) (cfg server.StreamConfig, err error) {
-	var retention server.RetentionPolicy
-	var storage server.StorageType
+func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig, err error) {
+	var retention api.RetentionPolicy
+	var storage api.StorageType
 
 	switch d.Get("retention").(string) {
 	case "limits":
-		retention = server.LimitsPolicy
+		retention = api.LimitsPolicy
 	case "interest":
-		retention = server.InterestPolicy
+		retention = api.InterestPolicy
 	case "workqueue":
-		retention = server.WorkQueuePolicy
+		retention = api.WorkQueuePolicy
 	}
 
 	switch d.Get("storage").(string) {
 	case "file":
-		storage = server.FileStorage
+		storage = api.FileStorage
 	case "memory":
-		storage = server.MemoryStorage
+		storage = api.MemoryStorage
 	}
 
 	subs := d.Get("subjects").([]interface{})
@@ -74,7 +74,7 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg server.StreamConf
 		subjects[i] = sub.(string)
 	}
 
-	return server.StreamConfig{
+	return api.StreamConfig{
 		Name:         d.Get("name").(string),
 		Subjects:     subjects,
 		Retention:    retention,

@@ -35,9 +35,9 @@ resource "jetstream_stream" "test" {
   subjects = ["TEST.*"]
 }
 
-resource "jetstream_consumer" "TEST_C1" {
+resource "jetstream_consumer" "TEST_C2" {
   stream_id       = jetstream_stream.test.id
-  durable_name    = "C1"
+  durable_name    = "C2"
   stream_sequence = 10
 }
 `
@@ -64,8 +64,8 @@ func TestResourceConsumer(t *testing.T) {
 				Config: fmt.Sprintf(testConsumerConfig_str10, jsm.Connection().ConnectedUrl()),
 				Check: resource.ComposeTestCheckFunc(
 					testStreamExist(t, "TEST"),
-					testConsumerExist(t, "TEST", "C1"),
-					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C1", "stream_sequence", "10"),
+					testConsumerExist(t, "TEST", "C2"),
+					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C2", "stream_sequence", "10"),
 				),
 			},
 		},

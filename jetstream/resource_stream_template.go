@@ -3,7 +3,7 @@ package jetstream
 import (
 	"fmt"
 
-	"github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/jsm.go/api"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/nats-io/jsm.go"
@@ -168,18 +168,18 @@ func resourceStreamTemplateRead(d *schema.ResourceData, m interface{}) error {
 	}
 
 	switch str.Storage {
-	case server.FileStorage:
+	case api.FileStorage:
 		d.Set("storage", "file")
-	case server.MemoryStorage:
+	case api.MemoryStorage:
 		d.Set("storage", "memory")
 	}
 
 	switch str.Retention {
-	case server.LimitsPolicy:
+	case api.LimitsPolicy:
 		d.Set("retention", "limits")
-	case server.InterestPolicy:
+	case api.InterestPolicy:
 		d.Set("retention", "interest")
-	case server.WorkQueuePolicy:
+	case api.WorkQueuePolicy:
 		d.Set("retention", "workqueue")
 	}
 
