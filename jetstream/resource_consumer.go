@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
 	"github.com/nats-io/jsm.go"
-	"github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/jsm.go/api"
 )
 
 func resourceConsumer() *schema.Resource {
@@ -46,7 +46,7 @@ func resourceConsumer() *schema.Resource {
 				Type:         schema.TypeInt,
 				Description:  "The Stream Sequence that will be the first message delivered by this Consumer",
 				Optional:     true,
-				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last"},
+				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last", "deliver_new"},
 				ForceNew:     true,
 			},
 			"start_time": &schema.Schema{
@@ -54,21 +54,28 @@ func resourceConsumer() *schema.Resource {
 				Description:  "The timestamp of the first message that will be delivered by this Consumer",
 				ValidateFunc: validation.IsRFC3339Time,
 				Optional:     true,
-				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last"},
+				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last", "deliver_new"},
 				ForceNew:     true,
 			},
 			"deliver_all": &schema.Schema{
 				Type:         schema.TypeBool,
 				Description:  "Starts at the first available message in the Stream",
 				Optional:     true,
-				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last"},
+				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last", "deliver_new"},
 				ForceNew:     true,
 			},
 			"deliver_last": &schema.Schema{
 				Type:         schema.TypeBool,
 				Description:  "Starts at the latest available message in the Stream",
 				Optional:     true,
-				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last"},
+				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last", "deliver_new"},
+				ForceNew:     true,
+			},
+			"deliver_new": &schema.Schema{
+				Type:         schema.TypeBool,
+				Description:  "Starts with the next available message in the Stream",
+				Optional:     true,
+				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last", "deliver_new"},
 				ForceNew:     true,
 			},
 			"ack_policy": &schema.Schema{
@@ -120,41 +127,52 @@ func resourceConsumer() *schema.Resource {
 	}
 }
 
-func consumerConfigFromResourceData(d *schema.ResourceData) (cfg server.ConsumerConfig, err error) {
-	cfg = server.ConsumerConfig{
+func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerConfig, err error) {
+	cfg = api.ConsumerConfig{
 		Durable:         d.Get("durable_name").(string),
 		AckWait:         time.Duration(d.Get("ack_wait").(int)) * time.Second,
 		MaxDeliver:      d.Get("max_delivery").(int),
 		FilterSubject:   d.Get("filter_subject").(string),
 		SampleFrequency: fmt.Sprintf("%d%%", d.Get("sample_freq").(int)),
-		Delivery:        d.Get("delivery_subject").(string),
-		StreamSeq:       uint64(d.Get("stream_sequence").(int)),
-		DeliverAll:      d.Get("deliver_all").(bool),
-		DeliverLast:     d.Get("deliver_last").(bool),
+		DeliverSubject:  d.Get("delivery_subject").(string),
+		DeliverPolicy:   api.DeliverAll,
 	}
 
-	t := d.Get("start_time").(string)
-	if t != "" {
-		cfg.StartTime, err = time.Parse(time.RFC3339, t)
+	seq := uint64(d.Get("stream_sequence").(int))
+	st := d.Get("start_time").(string)
+	switch {
+	case d.Get("deliver_all").(bool):
+		cfg.DeliverPolicy = api.DeliverAll
+	case d.Get("deliver_last").(bool):
+		cfg.DeliverPolicy = api.DeliverLast
+	case d.Get("deliver_new").(bool):
+		cfg.DeliverPolicy = api.DeliverNew
+	case seq > 0:
+		cfg.DeliverPolicy = api.DeliverByStartSequence
+		cfg.OptStartSeq = seq
+	case st != "":
+		ts, err := time.Parse(time.RFC3339, st)
 		if err != nil {
-			return server.ConsumerConfig{}, err
+			return api.ConsumerConfig{}, err
 		}
+		cfg.DeliverPolicy = api.DeliverByStartTime
+		cfg.OptStartTime = &ts
 	}
 
 	switch d.Get("replay_policy").(string) {
 	case "instant":
-		cfg.ReplayPolicy = server.ReplayInstant
+		cfg.ReplayPolicy = api.ReplayInstant
 	case "original":
-		cfg.ReplayPolicy = server.ReplayOriginal
+		cfg.ReplayPolicy = api.ReplayOriginal
 	}
 
 	switch d.Get("ack_policy").(string) {
 	case "explicit":
-		cfg.AckPolicy = server.AckExplicit
+		cfg.AckPolicy = api.AckExplicit
 	case "all":
-		cfg.AckPolicy = server.AckAll
+		cfg.AckPolicy = api.AckAll
 	case "none":
-		cfg.AckPolicy = server.AckNone
+		cfg.AckPolicy = api.AckNone
 	}
 
 	return cfg, nil
@@ -213,12 +231,24 @@ func resourceConsumerRead(d *schema.ResourceData, m interface{}) error {
 	d.Set("stream", cons.StreamName())
 	d.Set("durable_name", cons.DurableName())
 	d.Set("delivery_subject", cons.DeliverySubject())
-	d.Set("stream_sequence", cons.StreamSequence())
-	d.Set("delivery_all", cons.DeliverAll())
-	d.Set("deliver_last", cons.DeliverLast())
 	d.Set("ack_wait", cons.AckWait().Seconds())
 	d.Set("max_delivery", cons.MaxDeliver())
 	d.Set("filter_subject", cons.FilterSubject())
+	d.Set("stream_sequence", 0)
+	d.Set("start_time", "")
+
+	switch cons.DeliverPolicy() {
+	case api.DeliverAll:
+		d.Set("delivery_all", true)
+	case api.DeliverNew:
+		d.Set("delivery_new", true)
+	case api.DeliverLast:
+		d.Set("delivery_last", true)
+	case api.DeliverByStartSequence:
+		d.Set("stream_sequence", cons.StartSequence())
+	case api.DeliverByStartTime:
+		d.Set("start_time", cons.StartTime())
+	}
 
 	s := strings.TrimSuffix(cons.SampleFrequency(), "%")
 	freq, err := strconv.Atoi(s)
@@ -232,18 +262,18 @@ func resourceConsumerRead(d *schema.ResourceData, m interface{}) error {
 	}
 
 	switch cons.ReplayPolicy() {
-	case server.ReplayInstant:
+	case api.ReplayInstant:
 		d.Set("replay_policy", "instant")
-	case server.ReplayOriginal:
+	case api.ReplayOriginal:
 		d.Set("replay_policy", "original")
 	}
 
 	switch cons.AckPolicy() {
-	case server.AckExplicit:
+	case api.AckExplicit:
 		d.Set("ack_policy", "explicit")
-	case server.AckAll:
+	case api.AckAll:
 		d.Set("ack_policy", "all")
-	case server.AckNone:
+	case api.AckNone:
 		d.Set("ack_policy", "none")
 	}
 
