@@ -50,7 +50,7 @@ func resourceStream() *schema.Resource {
 				Type:        schema.TypeInt,
 				Description: "The maximum oldest message that can be kept in the stream, duration specified in seconds",
 				Optional:    true,
-				Default:     -1,
+				Default:     0,
 			},
 			"max_msg_size": &schema.Schema{
 				Type:        schema.TypeInt,
