@@ -6,7 +6,7 @@ require "pp"
 schema = JSON.parse(`terraform providers schema --json`)
 
 schema["provider_schemas"]["jetstream"]["resource_schemas"].sort_by{|r, _| r}.each do |resource, schema|
-    puts "## %s" % resource
+    puts "## %s Resource" % resource
     puts
     puts "### Attribute Reference"
     puts

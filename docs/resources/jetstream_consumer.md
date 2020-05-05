@@ -1,0 +1,38 @@
+# jetstream_stream Resource
+
+The `jetstream_consumer` Resource creates or deletes JetStream Consumers on any Terraform managed Stream. Does not support editing consumers in place.
+
+## Example Usage
+
+```hcl
+resource "jetstream_stream" "ORDERS" {
+  name     = "ORDERS"
+  subjects = ["ORDERS.*"]
+  storage  = "file"
+  max_age  = 60 * 60 * 24 * 365
+}
+
+resource "jetstream_consumer" "ORDERS_NEW" {
+  stream_id      = jetstream_stream.ORDERS.id
+  durable_name   = "NEW"
+  deliver_all    = true
+  filter_subject = "ORDERS.received"
+  sample_freq    = 100
+}
+```
+
+### Attribute Reference
+
+ * `ack_policy` - (optional) The delivery acknowledgement policy to apply to the Consumer
+ * `ack_wait` - (optional) Number of seconds to wait for acknowledgement
+ * `deliver_all` - (optional) Starts at the first available message in the Stream
+ * `deliver_last` - (optional) Starts at the latest available message in the Stream
+ * `delivery_subject` - (optional) The subject where a Push-based consumer will deliver messages
+ * `durable_name` - The durable name of the Consumer
+ * `filter_subject` - (optional) Only receive a subset of messages from the Stream based on the subject they entered the Stream on
+ * `max_delivery` - (optional) Maximum deliveries to attempt for each message
+ * `replay_policy` - (optional) The rate at which messages will be replayed from the stream
+ * `sample_freq` - (optional) The percentage of acknowledgements that will be sampled for observability purposes
+ * `start_time` - (optional) The timestamp of the first message that will be delivered by this Consumer
+ * `stream_id` - The name of the Stream that this consumer consumes
+ * `stream_sequence` - (optional) The Stream Sequence that will be the first message delivered by this Consumer

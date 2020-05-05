@@ -4,3 +4,4 @@ terraform.tfstate.backup
 terraform.tfstate
 .terraform
 dist
+main.tf
