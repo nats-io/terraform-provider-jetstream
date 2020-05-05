@@ -1,12 +1,53 @@
+before:
+  hooks:
+    - go mod tidy
 builds:
-  - binary: terraform-provider-jetstream_v{{.Version}}
-    env:
+  - env:
       - CGO_ENABLED=0
     goos:
-      - darwin
-      - linux
+      - freebsd
+      - openbsd
+      - solaris
       - windows
+      - linux
+      - darwin
     goarch:
       - amd64
+      - '386'
+      - arm
+      - arm64
+    ignore:
+      - goos: darwin
+        goarch: '386'
+      - goos: darwin
+        goarch: arm
+      - goos: darwin
+        goarch: arm64
+      - goos: openbsd
+        goarch: arm
+      - goos: openbsd
+        goarch: arm64
+      - goos: solaris
+        goarch: arm
+      - goos: solaris
+        goarch: arm64
+      - goos: solaris
+        goarch: '386'
+    binary: '{{ .ProjectName }}_v{{ .Version }}'
 archives:
   - format: zip
+    name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+checksum:
+  name_template: '{{ .ProjectName }}_{{ .Version }}_SHA256SUMS'
+  algorithm: sha256
+signs:
+  - artifacts: checksum
+    args:
+      - "--output"
+      - "${signature}"
+      - "--detach-sign"
+      - "${artifact}"
+release:
+  draft: true
+changelog:
+  skip: true
