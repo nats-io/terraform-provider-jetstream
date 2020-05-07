@@ -33,7 +33,7 @@ builds:
         goarch: arm64
       - goos: solaris
         goarch: '386'
-    binary: '{{ .ProjectName }}_v{{ .Version }}'
+    binary: '{{ .ProjectName }}_{{ .Version }}'
 archives:
   - format: zip
     name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
