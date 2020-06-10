@@ -1,6 +1,9 @@
-# JetStream Provider
+# NATS JetStream Provider
 
-Terraform Provider that connects to any NATS JetStream server
+The JetStream Provider manages [NATS](https://nats.io) JetStream that enables persistence and Stream
+Processing for the NATS eco system. 
+
+For background information please review the [Technical Preview](https://github.com/nats-io/jetstream#readme) notes.
 
 ## Example Usage
 
@@ -9,6 +12,21 @@ provider "jetstream" {
   servers     = "connect.ngs.global:4222"
   credentials = "/home/you/ngs_stream_admin.creds"
 }
+
+resource "jetstream_stream" "ORDERS" {
+  name     = "ORDERS"
+  subjects = ["ORDERS.*"]
+  storage  = "file"
+  max_age  = 60 * 60 * 24 * 365
+}
+
+resource "jetstream_consumer" "ORDERS_NEW" {
+  stream_id      = jetstream_stream.ORDERS.id
+  durable_name   = "NEW"
+  deliver_all    = true
+  filter_subject = "ORDERS.received"
+  sample_freq    = 100
+}
 ```
 
 ## Argument Reference
@@ -16,3 +34,9 @@ provider "jetstream" {
  * `servers` - The list of servers to connect to in a comma seperated list
  * `credentials` - (optional) Fully Qualified Path to a file holding NATS credentials.
  * `credential_data` - (optional) The NATS credentials as a string, intended to use with data providers.
+
+## Resources
+
+ * `jetstream_stream` - Manage a Stream that persistently stores messages
+ * `jetstream_consumer` - Creates a Consumer that defines how Stream messages can be consumed by clients
+ * `jetstream_stream_template` - Create a Stream Template that automatically generates Streams for incoming messages 
