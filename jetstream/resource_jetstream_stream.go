@@ -52,6 +52,12 @@ func resourceStream() *schema.Resource {
 				Optional:    true,
 				Default:     0,
 			},
+			"duplicate_window": &schema.Schema{
+				Type:        schema.TypeInt,
+				Description: "The size of the duplicate tracking windows, duration specified in seconds",
+				Optional:    true,
+				Default:     120,
+			},
 			"max_msg_size": &schema.Schema{
 				Type:        schema.TypeInt,
 				Description: "The maximum individual message size that the stream will accept",
@@ -141,6 +147,7 @@ func resourceStreamRead(d *schema.ResourceData, m interface{}) error {
 	d.Set("max_consumers", str.MaxConsumers())
 	d.Set("max_msgs", int(str.MaxMsgs()))
 	d.Set("max_age", str.MaxAge().Seconds())
+	d.Set("duplicate_window", str.DuplicateWindow().Seconds())
 	d.Set("max_bytes", str.MaxBytes())
 	d.Set("max_msg_size", int(str.MaxMsgSize()))
 	d.Set("replicas", str.Replicas())

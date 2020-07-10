@@ -26,3 +26,4 @@ resource "jetstream_stream" "ORDERS" {
  * `retention` - (optional) The retention policy to apply over and above max_msgs, max_bytes and max_age (string)
  * `storage` - (optional) The storage engine to use to back the stream (string)
  * `subjects` - The list of subjects that will be consumed by the Stream (["list", "string"])
+ * `duplicate_window` - (optional) The time window size for duplicate tracking, duration specified in seconds (number)
