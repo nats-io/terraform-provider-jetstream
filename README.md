@@ -193,3 +193,4 @@ resource "jetstream_consumer" "ORDERS_NEW" {
  * `start_time` - (optional) The timestamp of the first message that will be delivered by this Consumer
  * `stream_id` - The name of the Stream that this consumer consumes
  * `stream_sequence` - (optional) The Stream Sequence that will be the first message delivered by this Consumer
+ * `ratelimit` - (optional) The rate limit for delivering messages to push consumers, expressed in bits per second
