@@ -123,6 +123,14 @@ func resourceConsumer() *schema.Resource {
 				ValidateFunc: validation.IntBetween(0, 100),
 				ForceNew:     true,
 			},
+			"ratelimit": &schema.Schema{
+				Type:         schema.TypeInt,
+				Description:  "The rate limit for delivering messages to push consumers, expressed in bits per second",
+				Optional:     true,
+				Default:      0,
+				ValidateFunc: validation.IntAtLeast(0),
+				ForceNew:     true,
+			},
 		},
 	}
 }
@@ -136,6 +144,7 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 		SampleFrequency: fmt.Sprintf("%d%%", d.Get("sample_freq").(int)),
 		DeliverSubject:  d.Get("delivery_subject").(string),
 		DeliverPolicy:   api.DeliverAll,
+		RateLimit:       uint64(d.Get("ratelimit").(int)),
 	}
 
 	seq := uint64(d.Get("stream_sequence").(int))
@@ -236,6 +245,7 @@ func resourceConsumerRead(d *schema.ResourceData, m interface{}) error {
 	d.Set("filter_subject", cons.FilterSubject())
 	d.Set("stream_sequence", 0)
 	d.Set("start_time", "")
+	d.Set("ratelimit", cons.RateLimit())
 
 	switch cons.DeliverPolicy() {
 	case api.DeliverAll:
