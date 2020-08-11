@@ -2,9 +2,7 @@ This is a work in progress Terraform Provider to manage NATS JetStream.
 
 ## Installation
 
-To install download the archive for your platform from the [Releases Page](https://github.com/nats-io/terraform-provider-jetstream/releases) and place the plugin in your local install.
- 
-You can install it for your user by creating `~/.terraform.d/plugins/terraform-provider-jetstream_v0.0.3`.  After that `terraform init` will find it. Or you can check it into your repository in `your-repo/terraform.d/plugins/linux_amd64/terraform-provider-jetstream_v0.0.3`.
+When using Terraform 0.13 or newer adding the `provider` and running `terraform init` will download the provider from the [Terraform Registry](https://registry.terraform.io/providers/nats-io/jetstream/latest/docs).
 
 ## Credentials
 
@@ -34,16 +32,18 @@ A locked down user that can only admin JetStream but not retrieve any data store
 │ Issued               │ 2020-03-11 10:37:29 UTC                                  │
 │ Expires              │ 2020-04-11 10:37:29 UTC                                  │
 ├──────────────────────┼──────────────────────────────────────────────────────────┤
-│ Pub Allow            │ $JS.STREAM.*.CONSUMER.*.CREATE                           │
-│                      │ $JS.STREAM.*.CONSUMER.*.DELETE                           │
-│                      │ $JS.STREAM.*.CONSUMER.*.INFO                             │
-│                      │ $JS.STREAM.*.CONSUMERS                                   │
-│                      │ $JS.STREAM.*.CREATE                                      │
-│                      │ $JS.STREAM.*.DELETE                                      │
-│                      │ $JS.STREAM.*.INFO                                        │
-│                      │ $JS.STREAM.*.UPDATE                                      │
-│                      │ $JS.STREAM.LIST                                          │
-│                      │ $JS.TEMPLATE.>                                           │
+│ Pub Allow            │ $JS.API.STREAM.CREATE.*                                  │
+│                      │ $JS.API.STREAM.UPDATE.*                                  │
+│                      │ $JS.API.STREAM.DELETE.*                                  │
+│                      │ $JS.API.STREAM.INFO.*                                    │
+│                      │ $JS.API.STREAM.LIST                                      |
+│                      │ $JS.API.STREAM.NAMES                                     |
+│                      │ $JS.API.CONSUMER.DURABLE.CREATE.*.*                      |
+│                      │ $JS.API.CONSUMER.DELETE.*.*                              |
+│                      │ $JS.API.CONSUMER.INFO.*.*                                |
+|                      | $JS.API.CONSUMER.LIST.*                                  |
+|                      | $JS.API.CONSUMER.NAMES.*                                 |
+│                      │ $JS.API.STREAM.TEMPLATE.>                                │
 │ Sub Allow            │ _INBOX.>                                                 │
 ├──────────────────────┼──────────────────────────────────────────────────────────┤
 │ Response Permissions │ Not Set                                                  │
@@ -61,16 +61,18 @@ Here's a command to create this using `nsc`, note replace the `DemoAccount` and 
 $ nsc add user -a DemoAccount
 --expiry 1M \
 --name ngs_jetstream_admin \
---allow-pub '$JS.STREAM.*.CONSUMER.*.CREATE' \
---allow-pub '$JS.STREAM.*.CONSUMER.*.DELETE' \
---allow-pub '$JS.STREAM.*.CONSUMER.*.INFO' \
---allow-pub '$JS.STREAM.*.CONSUMERS' \
---allow-pub '$JS.STREAM.*.CREATE' \
---allow-pub '$JS.STREAM.*.DELETE' \
---allow-pub '$JS.STREAM.*.INFO' \
---allow-pub '$JS.STREAM.*.UPDATE' \
---allow-pub '$JS.STREAM.LIST' \
---allow-pub '$JS.TEMPLATE.>' \
+--allow-pub '$JS.API.STREAM.CREATE.*' \
+--allow-pub '$JS.API.STREAM.UPDATE.*' \
+--allow-pub '$JS.API.STREAM.DELETE.*' \
+--allow-pub '$JS.API.STREAM.INFO.*' \
+--allow-pub '$JS.API.STREAM.LIST' \
+--allow-pub '$JS.API.STREAM.NAMES' \
+--allow-pub '$JS.API.CONSUMER.DURABLE.CREATE.*.*' \
+--allow-pub '$JS.API.CONSUMER.DELETE.*.*' \
+--allow-pub '$JS.API.CONSUMER.INFO.*.*' \
+--allow-pub '$JS.API.CONSUMER.LIST.*' \
+--allow-pub '$JS.API.CONSUMER.NAMES.*' \
+--allow-pub '$JS.API.STREAM.TEMPLATE.>' \
 --allow-sub '_INBOX.>'
 ```
 
