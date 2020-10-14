@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
 	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/nats.go"
 )
 
 const testStreamTemplateConfig_basic = `
@@ -40,23 +41,32 @@ func TestResourceStreamTemplate(t *testing.T) {
 	srv := createJSServer(t)
 	defer srv.Shutdown()
 
-	jsm.Connect(srv.ClientURL())
+	nc, err := nats.Connect(srv.ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
 
 	resource.Test(t, resource.TestCase{
 		Providers:    testJsProviders,
-		CheckDestroy: testStreamTemplateDoesNotExist(t, "JS_1H"),
+		CheckDestroy: testStreamTemplateDoesNotExist(t, mgr, "JS_1H"),
 		Steps: []resource.TestStep{
 			{
-				Config: fmt.Sprintf(testStreamTemplateConfig_basic, jsm.Connection().ConnectedUrl()),
+				Config: fmt.Sprintf(testStreamTemplateConfig_basic, nc.ConnectedUrl()),
 				Check: resource.ComposeTestCheckFunc(
-					testStreamTemplateExist(t, "JS_1H"),
+					testStreamTemplateExist(t, mgr, "JS_1H"),
 					resource.TestCheckResourceAttr("jetstream_stream_template.test", "storage", "file"),
 				),
 			},
 			{
-				Config: fmt.Sprintf(testStreamTemplateConfig_memory, jsm.Connection().ConnectedUrl()),
+				Config: fmt.Sprintf(testStreamTemplateConfig_memory, nc.ConnectedUrl()),
 				Check: resource.ComposeTestCheckFunc(
-					testStreamTemplateExist(t, "JS_1H"),
+					testStreamTemplateExist(t, mgr, "JS_1H"),
 					resource.TestCheckResourceAttr("jetstream_stream_template.test", "storage", "memory"),
 				),
 			},

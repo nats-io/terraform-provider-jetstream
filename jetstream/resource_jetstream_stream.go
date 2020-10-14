@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
-	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 )
 
@@ -107,7 +106,9 @@ func resourceStreamCreate(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	_, err = jsm.NewStreamFromDefault(cfg.Name, cfg)
+	c := m.(*conn)
+
+	_, err = c.mgr.NewStreamFromDefault(cfg.Name, cfg)
 	if err != nil {
 		return err
 	}
@@ -123,7 +124,9 @@ func resourceStreamRead(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	known, err := jsm.IsKnownStream(name)
+	c := m.(*conn)
+
+	known, err := c.mgr.IsKnownStream(name)
 	if err != nil {
 		return fmt.Errorf("could not determine if stream %q is known: %s", name, err)
 	}
@@ -132,7 +135,7 @@ func resourceStreamRead(d *schema.ResourceData, m interface{}) error {
 		return nil
 	}
 
-	str, err := jsm.LoadStream(name)
+	str, err := c.mgr.LoadStream(name)
 	if err != nil {
 		return fmt.Errorf("could not load stream %q: %s", name, err)
 	}
@@ -179,7 +182,9 @@ func resourceStreamRead(d *schema.ResourceData, m interface{}) error {
 func resourceStreamUpdate(d *schema.ResourceData, m interface{}) error {
 	name := d.Get("name").(string)
 
-	known, err := jsm.IsKnownStream(name)
+	c := m.(*conn)
+
+	known, err := c.mgr.IsKnownStream(name)
 	if err != nil {
 		return err
 	}
@@ -188,7 +193,7 @@ func resourceStreamUpdate(d *schema.ResourceData, m interface{}) error {
 		return nil
 	}
 
-	str, err := jsm.LoadStream(name)
+	str, err := c.mgr.LoadStream(name)
 	if err != nil {
 		return err
 	}
@@ -209,7 +214,9 @@ func resourceStreamUpdate(d *schema.ResourceData, m interface{}) error {
 func resourceStreamDelete(d *schema.ResourceData, m interface{}) error {
 	name := d.Get("name").(string)
 
-	known, err := jsm.IsKnownStream(name)
+	c := m.(*conn)
+
+	known, err := c.mgr.IsKnownStream(name)
 	if err != nil {
 		return err
 	}
@@ -218,7 +225,7 @@ func resourceStreamDelete(d *schema.ResourceData, m interface{}) error {
 		return nil
 	}
 
-	str, err := jsm.LoadStream(name)
+	str, err := c.mgr.LoadStream(name)
 	if err != nil {
 		return err
 	}

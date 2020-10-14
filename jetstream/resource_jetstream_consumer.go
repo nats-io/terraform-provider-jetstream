@@ -8,7 +8,6 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
-	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 )
 
@@ -198,7 +197,9 @@ func resourceConsumerCreate(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	_, err = jsm.NewConsumerFromDefault(stream, cfg)
+	c := m.(*conn)
+
+	_, err = c.mgr.NewConsumerFromDefault(stream, cfg)
 	if err != nil {
 		return err
 	}
@@ -214,7 +215,9 @@ func resourceConsumerRead(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	known, err := jsm.IsKnownStream(stream)
+	c := m.(*conn)
+
+	known, err := c.mgr.IsKnownStream(stream)
 	if err != nil {
 		return fmt.Errorf("could not determine if stream %q is known: %s", name, err)
 	}
@@ -223,7 +226,7 @@ func resourceConsumerRead(d *schema.ResourceData, m interface{}) error {
 		return nil
 	}
 
-	known, err = jsm.IsKnownConsumer(stream, name)
+	known, err = c.mgr.IsKnownConsumer(stream, name)
 	if err != nil {
 		return fmt.Errorf("could not determine if %q > %q is a known consumer: %s", stream, name, err)
 	}
@@ -232,7 +235,7 @@ func resourceConsumerRead(d *schema.ResourceData, m interface{}) error {
 		return nil
 	}
 
-	cons, err := jsm.LoadConsumer(stream, name)
+	cons, err := c.mgr.LoadConsumer(stream, name)
 	if err != nil {
 		return err
 	}
@@ -296,7 +299,9 @@ func resourceConsumerDelete(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	known, err := jsm.IsKnownConsumer(streamName, durableName)
+	c := m.(*conn)
+
+	known, err := c.mgr.IsKnownConsumer(streamName, durableName)
 	if err != nil {
 		return err
 	}
@@ -305,7 +310,7 @@ func resourceConsumerDelete(d *schema.ResourceData, m interface{}) error {
 		return nil
 	}
 
-	cons, err := jsm.LoadConsumer(streamName, durableName)
+	cons, err := c.mgr.LoadConsumer(streamName, durableName)
 	if err != nil {
 		return err
 	}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
 	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/nats.go"
 )
 
 const testConsumerConfig_basic = `
@@ -46,25 +47,34 @@ func TestResourceConsumer(t *testing.T) {
 	srv := createJSServer(t)
 	defer srv.Shutdown()
 
-	jsm.Connect(srv.ClientURL())
+	nc, err := nats.Connect(srv.ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
 
 	resource.Test(t, resource.TestCase{
 		Providers:    testJsProviders,
-		CheckDestroy: testConsumerDoesNotExist(t, "TEST", "C1"),
+		CheckDestroy: testConsumerDoesNotExist(t, mgr, "TEST", "C1"),
 		Steps: []resource.TestStep{
 			{
-				Config: fmt.Sprintf(testConsumerConfig_basic, jsm.Connection().ConnectedUrl()),
+				Config: fmt.Sprintf(testConsumerConfig_basic, nc.ConnectedUrl()),
 				Check: resource.ComposeTestCheckFunc(
-					testStreamExist(t, "TEST"),
-					testConsumerExist(t, "TEST", "C1"),
+					testStreamExist(t, mgr, "TEST"),
+					testConsumerExist(t, mgr, "TEST", "C1"),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C1", "stream_sequence", "0"),
 				),
 			},
 			{
-				Config: fmt.Sprintf(testConsumerConfig_str10, jsm.Connection().ConnectedUrl()),
+				Config: fmt.Sprintf(testConsumerConfig_str10, nc.ConnectedUrl()),
 				Check: resource.ComposeTestCheckFunc(
-					testStreamExist(t, "TEST"),
-					testConsumerExist(t, "TEST", "C2"),
+					testStreamExist(t, mgr, "TEST"),
+					testConsumerExist(t, mgr, "TEST", "C2"),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C2", "stream_sequence", "10"),
 				),
 			},

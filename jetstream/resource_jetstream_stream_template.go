@@ -6,7 +6,6 @@ import (
 	"github.com/nats-io/jsm.go/api"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
-	"github.com/nats-io/jsm.go"
 )
 
 func resourceStreamTemplate() *schema.Resource {
@@ -126,7 +125,9 @@ func resourceStreamTemplateCreate(d *schema.ResourceData, m interface{}) error {
 	name := cfg.Name
 	cfg.Name = ""
 
-	_, err = jsm.NewStreamTemplate(name, uint32(d.Get("max_streams").(int)), cfg)
+	c := m.(*conn)
+
+	_, err = c.mgr.NewStreamTemplate(name, uint32(d.Get("max_streams").(int)), cfg)
 	if err != nil {
 		return err
 	}
@@ -142,7 +143,9 @@ func resourceStreamTemplateRead(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	known, err := jsm.IsKnownStreamTemplate(tname)
+	c := m.(*conn)
+
+	known, err := c.mgr.IsKnownStreamTemplate(tname)
 	if err != nil {
 		return fmt.Errorf("could not determine if stream template %q is known: %s", tname, err)
 	}
@@ -151,7 +154,7 @@ func resourceStreamTemplateRead(d *schema.ResourceData, m interface{}) error {
 		return nil
 	}
 
-	template, err := jsm.LoadStreamTemplate(tname)
+	template, err := c.mgr.LoadStreamTemplate(tname)
 	if err != nil {
 		return fmt.Errorf("could not load stream template %q: %s", tname, err)
 	}
@@ -199,7 +202,9 @@ func resourceStreamTemplateDelete(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	known, err := jsm.IsKnownStreamTemplate(name)
+	c := m.(*conn)
+
+	known, err := c.mgr.IsKnownStreamTemplate(name)
 	if err != nil {
 		return err
 	}
@@ -208,7 +213,7 @@ func resourceStreamTemplateDelete(d *schema.ResourceData, m interface{}) error {
 		return nil
 	}
 
-	str, err := jsm.LoadStreamTemplate(name)
+	str, err := c.mgr.LoadStreamTemplate(name)
 	if err != nil {
 		d.SetId("")
 		return nil
