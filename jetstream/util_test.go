@@ -10,9 +10,9 @@ import (
 	"github.com/nats-io/jsm.go"
 )
 
-func testStreamHasSubjects(t *testing.T, stream string, subjects []string) resource.TestCheckFunc {
+func testStreamHasSubjects(t *testing.T, mgr *jsm.Manager, stream string, subjects []string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		str, err := jsm.LoadStream(stream)
+		str, err := mgr.LoadStream(stream)
 		if err != nil {
 			return err
 		}
@@ -25,78 +25,78 @@ func testStreamHasSubjects(t *testing.T, stream string, subjects []string) resou
 	}
 }
 
-func testStreamExist(t *testing.T, stream string) resource.TestCheckFunc {
+func testStreamExist(t *testing.T, mgr *jsm.Manager, stream string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		known, err := jsm.IsKnownStream(stream)
+		known, err := mgr.IsKnownStream(stream)
 		if err != nil {
 			return err
 		}
 
 		if !known {
-			return fmt.Errorf("stream %q does not exist on %q", stream, jsm.Connection().ConnectedUrl())
+			return fmt.Errorf("stream %q does not exist", stream)
 		}
 
 		return nil
 	}
 }
 
-func testStreamTemplateExist(t *testing.T, template string) resource.TestCheckFunc {
+func testStreamTemplateExist(t *testing.T, mgr *jsm.Manager, template string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		known, err := jsm.IsKnownStreamTemplate(template)
+		known, err := mgr.IsKnownStreamTemplate(template)
 		if err != nil {
 			return err
 		}
 
 		if !known {
-			return fmt.Errorf("stream template %q does not exist on %q", template, jsm.Connection().ConnectedUrl())
+			return fmt.Errorf("stream template %q does not exist", template)
 		}
 
 		return nil
 	}
 }
 
-func testStreamTemplateDoesNotExist(t *testing.T, template string) resource.TestCheckFunc {
+func testStreamTemplateDoesNotExist(t *testing.T, mgr *jsm.Manager, template string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		err := testStreamTemplateExist(t, template)
+		err := testStreamTemplateExist(t, mgr, template)
 		if err == nil {
-			return fmt.Errorf("expected stream template %q to not exist on %q", template, jsm.Connection().ConnectedUrl())
+			return fmt.Errorf("expected stream template %q to not exist", template)
 		}
 
 		return nil
 	}
 }
 
-func testStreamDoesNotExist(t *testing.T, stream string) resource.TestCheckFunc {
+func testStreamDoesNotExist(t *testing.T, mgr *jsm.Manager, stream string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		err := testStreamExist(t, stream)
+		err := testStreamExist(t, mgr, stream)
 		if err == nil {
-			return fmt.Errorf("expected stream %q to not exist on %q", stream, jsm.Connection().ConnectedUrl())
+			return fmt.Errorf("expected stream %q to not exist", stream)
 		}
 
 		return nil
 	}
 }
 
-func testConsumerExist(t *testing.T, stream string, consumer string) resource.TestCheckFunc {
+func testConsumerExist(t *testing.T, mgr *jsm.Manager, stream string, consumer string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		known, err := jsm.IsKnownConsumer(stream, consumer)
+		known, err := mgr.IsKnownConsumer(stream, consumer)
 		if err != nil {
 			return err
 		}
 
 		if !known {
-			return fmt.Errorf("expected %q > %q to exist on %q", stream, consumer, jsm.Connection().ConnectedUrl())
+			return fmt.Errorf("expected %q > %q to exist", stream, consumer)
 		}
 
 		return nil
 	}
 }
 
-func testConsumerDoesNotExist(t *testing.T, stream string, consumer string) resource.TestCheckFunc {
+func testConsumerDoesNotExist(t *testing.T, mgr *jsm.Manager, stream string, consumer string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		err := testConsumerExist(t, stream, consumer)
+		err := testConsumerExist(t, mgr, stream, consumer)
 		if err == nil {
-			return fmt.Errorf("expected consumer %q > %q to not exist on %q", stream, consumer, jsm.Connection().ConnectedUrl())
+			return fmt.Errorf("expected consumer %q > %q to not exist", stream, consumer)
 		}
 
 		return nil

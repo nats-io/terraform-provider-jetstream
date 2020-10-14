@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
 	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/nats.go"
 )
 
 const testStreamConfig_basic = `
@@ -34,25 +35,34 @@ func TestResourceStream(t *testing.T) {
 	srv := createJSServer(t)
 	defer srv.Shutdown()
 
-	jsm.Connect(srv.ClientURL())
+	nc, err := nats.Connect(srv.ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
 
 	resource.Test(t, resource.TestCase{
 		Providers:    testJsProviders,
-		CheckDestroy: testStreamDoesNotExist(t, "TEST"),
+		CheckDestroy: testStreamDoesNotExist(t, mgr, "TEST"),
 		Steps: []resource.TestStep{
 			{
-				Config: fmt.Sprintf(testStreamConfig_basic, jsm.Connection().ConnectedUrl()),
+				Config: fmt.Sprintf(testStreamConfig_basic, nc.ConnectedUrl()),
 				Check: resource.ComposeTestCheckFunc(
-					testStreamExist(t, "TEST"),
-					testStreamHasSubjects(t, "TEST", []string{"TEST.*"}),
+					testStreamExist(t, mgr, "TEST"),
+					testStreamHasSubjects(t, mgr, "TEST", []string{"TEST.*"}),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "max_msgs", "-1"),
 				),
 			},
 			{
-				Config: fmt.Sprintf(testStreamConfig_OtherSubjects, jsm.Connection().ConnectedUrl()),
+				Config: fmt.Sprintf(testStreamConfig_OtherSubjects, nc.ConnectedUrl()),
 				Check: resource.ComposeTestCheckFunc(
-					testStreamExist(t, "TEST"),
-					testStreamHasSubjects(t, "TEST", []string{"OTHER.*"}),
+					testStreamExist(t, mgr, "TEST"),
+					testStreamHasSubjects(t, mgr, "TEST", []string{"OTHER.*"}),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "max_msgs", "10"),
 				),
 			},
