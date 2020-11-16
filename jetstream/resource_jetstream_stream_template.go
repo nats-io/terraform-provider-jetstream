@@ -18,19 +18,19 @@ func resourceStreamTemplate() *schema.Resource {
 		},
 
 		Schema: map[string]*schema.Schema{
-			"name": &schema.Schema{
+			"name": {
 				Type:        schema.TypeString,
 				Description: "The name of the Stream Template",
 				Required:    true,
 				ForceNew:    true,
 			},
-			"max_streams": &schema.Schema{
+			"max_streams": {
 				Type:        schema.TypeInt,
 				Description: "Maximum number of Streams this Template can manage",
 				Required:    true,
 				ForceNew:    true,
 			},
-			"subjects": &schema.Schema{
+			"subjects": {
 				Type:        schema.TypeList,
 				MinItems:    1,
 				Description: "The list of subjects that will be consumed by the Stream",
@@ -40,42 +40,42 @@ func resourceStreamTemplate() *schema.Resource {
 					Type: schema.TypeString,
 				},
 			},
-			"max_msgs": &schema.Schema{
+			"max_msgs": {
 				Type:        schema.TypeInt,
 				Description: "The maximum amount of messages that can be kept in the stream",
 				Optional:    true,
 				ForceNew:    true,
 				Default:     -1,
 			},
-			"max_bytes": &schema.Schema{
+			"max_bytes": {
 				Type:        schema.TypeInt,
 				Description: "The maximum size of all messages that can be kept in the stream",
 				Optional:    true,
 				ForceNew:    true,
 				Default:     -1,
 			},
-			"max_age": &schema.Schema{
+			"max_age": {
 				Type:        schema.TypeInt,
 				Description: "The maximum oldest message that can be kept in the stream, duration specified in seconds",
 				Optional:    true,
 				ForceNew:    true,
 				Default:     -1,
 			},
-			"duplicate_window": &schema.Schema{
+			"duplicate_window": {
 				Type:        schema.TypeInt,
 				Description: "The size of the duplicate tracking windows, duration specified in seconds",
 				Optional:    true,
 				ForceNew:    true,
 				Default:     120,
 			},
-			"max_msg_size": &schema.Schema{
+			"max_msg_size": {
 				Type:        schema.TypeInt,
 				Description: "The maximum individual message size that the stream will accept",
 				Optional:    true,
 				ForceNew:    true,
 				Default:     -1,
 			},
-			"storage": &schema.Schema{
+			"storage": {
 				Type:         schema.TypeString,
 				Description:  "The storage engine to use to back the stream",
 				Default:      "file",
@@ -83,14 +83,14 @@ func resourceStreamTemplate() *schema.Resource {
 				Optional:     true,
 				ValidateFunc: validateStorageTypeString(),
 			},
-			"ack": &schema.Schema{
+			"ack": {
 				Type:        schema.TypeBool,
 				Description: "If the Stream should support confirming receiving messages via acknowledgements",
 				Optional:    true,
 				Default:     true,
 				ForceNew:    true,
 			},
-			"retention": &schema.Schema{
+			"retention": {
 				Type:         schema.TypeString,
 				Description:  "The retention policy to apply over and above max_msgs, max_bytes and max_age",
 				Default:      "limits",
@@ -98,14 +98,14 @@ func resourceStreamTemplate() *schema.Resource {
 				ForceNew:     true,
 				ValidateFunc: validateRetentionTypeString(),
 			},
-			"max_consumers": &schema.Schema{
+			"max_consumers": {
 				Type:        schema.TypeInt,
 				Description: "Number of consumers this stream allows",
 				Default:     -1,
 				Optional:    true,
 				ForceNew:    true,
 			},
-			"replicas": &schema.Schema{
+			"replicas": {
 				Type:        schema.TypeInt,
 				Description: "How many replicas of the data to keep in a clustered environment",
 				Default:     1,

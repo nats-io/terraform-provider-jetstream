@@ -21,34 +21,34 @@ func resourceConsumer() *schema.Resource {
 		},
 
 		Schema: map[string]*schema.Schema{
-			"stream_id": &schema.Schema{
+			"stream_id": {
 				Type:         schema.TypeString,
 				Description:  "The name of the Stream that this consumer consumes",
 				Required:     true,
 				ForceNew:     true,
 				ValidateFunc: validation.StringIsNotEmpty,
 			},
-			"durable_name": &schema.Schema{
+			"durable_name": {
 				Type:         schema.TypeString,
 				Description:  "The durable name of the Consumer",
 				Required:     true,
 				ForceNew:     true,
 				ValidateFunc: validation.StringIsNotEmpty,
 			},
-			"delivery_subject": &schema.Schema{
+			"delivery_subject": {
 				Type:        schema.TypeString,
 				Description: "The subject where a Push-based consumer will deliver messages",
 				Optional:    true,
 				ForceNew:    true,
 			},
-			"stream_sequence": &schema.Schema{
+			"stream_sequence": {
 				Type:         schema.TypeInt,
 				Description:  "The Stream Sequence that will be the first message delivered by this Consumer",
 				Optional:     true,
 				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last", "deliver_new"},
 				ForceNew:     true,
 			},
-			"start_time": &schema.Schema{
+			"start_time": {
 				Type:         schema.TypeString,
 				Description:  "The timestamp of the first message that will be delivered by this Consumer",
 				ValidateFunc: validation.IsRFC3339Time,
@@ -56,28 +56,28 @@ func resourceConsumer() *schema.Resource {
 				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last", "deliver_new"},
 				ForceNew:     true,
 			},
-			"deliver_all": &schema.Schema{
+			"deliver_all": {
 				Type:         schema.TypeBool,
 				Description:  "Starts at the first available message in the Stream",
 				Optional:     true,
 				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last", "deliver_new"},
 				ForceNew:     true,
 			},
-			"deliver_last": &schema.Schema{
+			"deliver_last": {
 				Type:         schema.TypeBool,
 				Description:  "Starts at the latest available message in the Stream",
 				Optional:     true,
 				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last", "deliver_new"},
 				ForceNew:     true,
 			},
-			"deliver_new": &schema.Schema{
+			"deliver_new": {
 				Type:         schema.TypeBool,
 				Description:  "Starts with the next available message in the Stream",
 				Optional:     true,
 				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last", "deliver_new"},
 				ForceNew:     true,
 			},
-			"ack_policy": &schema.Schema{
+			"ack_policy": {
 				Type:         schema.TypeString,
 				Description:  "The delivery acknowledgement policy to apply to the Consumer",
 				Optional:     true,
@@ -85,28 +85,28 @@ func resourceConsumer() *schema.Resource {
 				ValidateFunc: validation.StringInSlice([]string{"explicit", "all", "none"}, false),
 				ForceNew:     true,
 			},
-			"ack_wait": &schema.Schema{
+			"ack_wait": {
 				Type:        schema.TypeInt,
 				Description: "Number of seconds to wait for acknowledgement",
 				Default:     30,
 				Optional:    true,
 				ForceNew:    true,
 			},
-			"max_delivery": &schema.Schema{
+			"max_delivery": {
 				Type:        schema.TypeInt,
 				Description: "Maximum deliveries to attempt for each message",
 				Default:     -1,
 				Optional:    true,
 				ForceNew:    true,
 			},
-			"filter_subject": &schema.Schema{
+			"filter_subject": {
 				Type:        schema.TypeString,
 				Description: "Only receive a subset of messages from the Stream based on the subject they entered the Stream on",
 				Default:     "",
 				Optional:    true,
 				ForceNew:    true,
 			},
-			"replay_policy": &schema.Schema{
+			"replay_policy": {
 				Type:         schema.TypeString,
 				Description:  "The rate at which messages will be replayed from the stream",
 				Optional:     true,
@@ -114,7 +114,7 @@ func resourceConsumer() *schema.Resource {
 				ValidateFunc: validation.StringInSlice([]string{"instant", "original"}, false),
 				ForceNew:     true,
 			},
-			"sample_freq": &schema.Schema{
+			"sample_freq": {
 				Type:         schema.TypeInt,
 				Description:  "The percentage of acknowledgements that will be sampled for observability purposes",
 				Optional:     true,
@@ -122,9 +122,17 @@ func resourceConsumer() *schema.Resource {
 				ValidateFunc: validation.IntBetween(0, 100),
 				ForceNew:     true,
 			},
-			"ratelimit": &schema.Schema{
+			"ratelimit": {
 				Type:         schema.TypeInt,
 				Description:  "The rate limit for delivering messages to push consumers, expressed in bits per second",
+				Optional:     true,
+				Default:      0,
+				ValidateFunc: validation.IntAtLeast(0),
+				ForceNew:     true,
+			},
+			"max_ack_pending": {
+				Type:         schema.TypeInt,
+				Description:  "Maximum pending Acks before consumers are paused",
 				Optional:     true,
 				Default:      0,
 				ValidateFunc: validation.IntAtLeast(0),
@@ -144,6 +152,7 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 		DeliverSubject:  d.Get("delivery_subject").(string),
 		DeliverPolicy:   api.DeliverAll,
 		RateLimit:       uint64(d.Get("ratelimit").(int)),
+		MaxAckPending:   d.Get("max_ack_pending").(int),
 	}
 
 	seq := uint64(d.Get("stream_sequence").(int))
@@ -249,6 +258,7 @@ func resourceConsumerRead(d *schema.ResourceData, m interface{}) error {
 	d.Set("stream_sequence", 0)
 	d.Set("start_time", "")
 	d.Set("ratelimit", cons.RateLimit())
+	d.Set("max_ack_pending", cons.MaxAckPending())
 
 	switch cons.DeliverPolicy() {
 	case api.DeliverAll:
