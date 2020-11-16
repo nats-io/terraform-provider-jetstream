@@ -40,6 +40,7 @@ resource "jetstream_consumer" "TEST_C2" {
   stream_id       = jetstream_stream.test.id
   durable_name    = "C2"
   stream_sequence = 10
+  max_ack_pending = 20
 }
 `
 
@@ -76,6 +77,7 @@ func TestResourceConsumer(t *testing.T) {
 					testStreamExist(t, mgr, "TEST"),
 					testConsumerExist(t, mgr, "TEST", "C2"),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C2", "stream_sequence", "10"),
+					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C2", "max_ack_pending", "20"),
 				),
 			},
 		},
