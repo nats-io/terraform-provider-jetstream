@@ -192,6 +192,11 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 		cfg.AckPolicy = api.AckNone
 	}
 
+	ok, errs := cfg.Validate(new(SchemaValidator))
+	if !ok {
+		return api.ConsumerConfig{}, fmt.Errorf(strings.Join(errs, ", "))
+	}
+
 	return cfg, nil
 }
 

@@ -96,6 +96,20 @@ func resourceStream() *schema.Resource {
 				Default:     1,
 				Optional:    true,
 			},
+			"placement_cluster": {
+				Type:        schema.TypeString,
+				Description: "Place the stream in a specific cluster, influenced by placement_tags",
+				Default:     "",
+				Optional:    true,
+			},
+			"placement_tags": {
+				Type:        schema.TypeList,
+				Description: "Place the stream only on servers with these tags",
+				Optional:    true,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+			},
 		},
 	}
 }
