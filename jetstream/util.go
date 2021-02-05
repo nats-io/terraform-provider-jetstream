@@ -2,6 +2,7 @@ package jetstream
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
@@ -77,7 +78,22 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		subjects[i] = sub.(string)
 	}
 
-	return api.StreamConfig{
+	var placement *api.Placement
+	c, ok := d.GetOk("placement_cluster")
+	if ok {
+		placement = &api.Placement{Cluster: c.(string)}
+		pt, ok := d.GetOk("placement_tags")
+		if ok {
+			ts := pt.([]interface{})
+			var tags = make([]string, len(ts))
+			for i, tag := range ts {
+				tags[i] = tag.(string)
+			}
+			placement.Tags = tags
+		}
+	}
+
+	stream := api.StreamConfig{
 		Name:         d.Get("name").(string),
 		Subjects:     subjects,
 		Retention:    retention,
@@ -90,7 +106,15 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		Storage:      storage,
 		Replicas:     d.Get("replicas").(int),
 		NoAck:        !d.Get("ack").(bool),
-	}, nil
+		Placement:    placement,
+	}
+
+	ok, errs := stream.Validate(new(SchemaValidator))
+	if !ok {
+		return api.StreamConfig{}, fmt.Errorf(strings.Join(errs, ", "))
+	}
+
+	return stream, nil
 }
 
 func wipeSlice(buf []byte) {
