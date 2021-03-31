@@ -52,6 +52,50 @@ func validateStorageTypeString() schema.SchemaValidateFunc {
 	return validation.StringInSlice([]string{"file", "memory"}, false)
 }
 
+func streamSourceFromResourceData(d interface{}) ([]*api.StreamSource, error) {
+	ss := d.([]interface{})
+	if len(ss) == 0 {
+		return nil, fmt.Errorf("no data received")
+	}
+
+	var res []*api.StreamSource
+
+	for _, sd := range ss {
+		s, ok := sd.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid hashmap received")
+		}
+
+		source := &api.StreamSource{
+			Name:          s["name"].(string),
+			OptStartSeq:   uint64(s["start_seq"].(int)),
+			FilterSubject: s["filter_subject"].(string),
+		}
+
+		st := s["start_time"].(string)
+		if st != "" {
+			ts, err := time.Parse(time.RFC3339, st)
+			if err != nil {
+				return nil, err
+			}
+			source.OptStartTime = &ts
+		}
+
+		exts := s["external"].([]interface{})
+		if len(exts) > 0 {
+			ext := exts[0].(map[string]interface{})
+			source.External = &api.ExternalStream{
+				ApiPrefix:     ext["api"].(string),
+				DeliverPrefix: ext["deliver"].(string),
+			}
+		}
+
+		res = append(res, source)
+	}
+
+	return res, nil
+}
+
 func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig, err error) {
 	var retention api.RetentionPolicy
 	var storage api.StorageType
@@ -107,6 +151,35 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		Replicas:     d.Get("replicas").(int),
 		NoAck:        !d.Get("ack").(bool),
 		Placement:    placement,
+	}
+
+	mirror, ok := d.GetOk("mirror")
+	if ok {
+		sources, err := streamSourceFromResourceData(mirror)
+		if err != nil {
+			return api.StreamConfig{}, err
+		}
+		if len(sources) != 1 {
+			return api.StreamConfig{}, fmt.Errorf("expected exactly one mirror source")
+		}
+		stream.Mirror = sources[0]
+	}
+
+	ss, ok := d.GetOk("source")
+	if ok {
+		sources, err := streamSourceFromResourceData(ss)
+		if err != nil {
+			return api.StreamConfig{}, err
+		}
+		stream.Sources = sources
+	}
+
+	if stream.Mirror != nil && len(stream.Sources) > 0 {
+		return api.StreamConfig{}, fmt.Errorf("only one of sources and mirror may be specified")
+	}
+
+	if len(stream.Subjects) == 0 && stream.Mirror == nil && len(stream.Sources) == 0 {
+		return api.StreamConfig{}, fmt.Errorf("subjects are required for streams without mirrors or sources")
 	}
 
 	ok, errs := stream.Validate(new(SchemaValidator))

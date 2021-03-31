@@ -17,11 +17,61 @@ func testStreamHasSubjects(t *testing.T, mgr *jsm.Manager, stream string, subjec
 			return err
 		}
 
+		if len(str.Subjects()) == 0 && len(subjects) == 0 {
+			return nil
+		}
 		if cmp.Equal(str.Subjects(), subjects) {
 			return nil
 		}
 
 		return fmt.Errorf("expected %q got %q", subjects, str.Subjects())
+	}
+}
+
+func testStreamIsSourceOf(t *testing.T, mgr *jsm.Manager, stream string, sources []string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		str, err := mgr.LoadStream(stream)
+		if err != nil {
+			return err
+		}
+
+		if !str.IsSourced() {
+			return fmt.Errorf("stream is not sourced")
+		}
+
+		for _, name := range sources {
+			found := false
+			for _, source := range str.Sources() {
+				if source.Name == name {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				return fmt.Errorf("stream is not a source of %s", name)
+			}
+		}
+
+		return nil
+	}
+}
+
+func testStreamIsMirrorOf(t *testing.T, mgr *jsm.Manager, stream string, mirror string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		str, err := mgr.LoadStream(stream)
+		if err != nil {
+			return err
+		}
+
+		if !str.IsMirror() {
+			return fmt.Errorf("stream is not mirrored")
+		}
+		if str.Mirror().Name != mirror {
+			return fmt.Errorf("stream is mirror of %q", str.Mirror().Name)
+		}
+
+		return nil
 	}
 }
 

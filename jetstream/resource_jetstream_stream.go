@@ -2,12 +2,60 @@ package jetstream
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
 	"github.com/nats-io/jsm.go/api"
 )
 
 func resourceStream() *schema.Resource {
+	sourceInfo := map[string]*schema.Schema{
+		"name": {
+			Type:        schema.TypeString,
+			Description: "The name of the source Stream",
+			Required:    true,
+		},
+		"start_seq": {
+			Type:        schema.TypeInt,
+			Description: "The sequence to start mirroring from",
+			Optional:    true,
+		},
+		"start_time": {
+			Type:         schema.TypeString,
+			ValidateFunc: validation.IsRFC3339Time,
+			Description:  "The time stamp in the source stream to start from, in RFC3339 format",
+			Optional:     true,
+		},
+		"filter_subject": {
+			Type:        schema.TypeString,
+			Description: "Only copy messages matching a specific subject, not usable for mirrors",
+			Optional:    true,
+		},
+		"external": {
+			Type:        schema.TypeList,
+			MaxItems:    1,
+			Description: "Streams replicated from other accounts",
+			Optional:    true,
+			Elem: &schema.Resource{
+				Schema: map[string]*schema.Schema{
+					"api": {
+						Type:        schema.TypeString,
+						Description: "The subject prefix for the remote API",
+						Required:    false,
+						Optional:    true,
+					},
+					"deliver": {
+						Type:        schema.TypeString,
+						Description: "The subject prefix where messages will be delivered to",
+						Required:    false,
+						Optional:    true,
+					},
+				},
+			},
+		},
+	}
+
 	return &schema.Resource{
 		Create: resourceStreamCreate,
 		Read:   resourceStreamRead,
@@ -27,8 +75,8 @@ func resourceStream() *schema.Resource {
 			"subjects": {
 				Type:        schema.TypeList,
 				MinItems:    1,
-				Description: "The list of subjects that will be consumed by the Stream",
-				Required:    true,
+				Description: "The list of subjects that will be consumed by the Stream, may be empty when sources and mirrors are present",
+				Optional:    true,
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
@@ -110,6 +158,23 @@ func resourceStream() *schema.Resource {
 					Type: schema.TypeString,
 				},
 			},
+			"mirror": {
+				Type:        schema.TypeList,
+				Description: "Specifies a remote stream to mirror into this one",
+				MaxItems:    1,
+				ForceNew:    false,
+				Required:    false,
+				Optional:    true,
+				Elem:        &schema.Resource{Schema: sourceInfo},
+			},
+			"source": {
+				Type:        schema.TypeList,
+				Description: "Specifies a list of streams to source into this one",
+				ForceNew:    false,
+				Required:    false,
+				Optional:    true,
+				Elem:        &schema.Resource{Schema: sourceInfo},
+			},
 		},
 	}
 }
@@ -190,6 +255,34 @@ func resourceStreamRead(d *schema.ResourceData, m interface{}) error {
 		d.Set("retention", "workqueue")
 	}
 
+	if str.IsMirror() {
+		mirror := str.Mirror()
+		d.Set("mirror.0.name", mirror.Name)
+		d.Set("mirror.0.filter_subject", mirror.FilterSubject)
+		d.Set("mirror.0.start_seq", mirror.OptStartSeq)
+		if mirror.OptStartTime != nil {
+			d.Set("mirror.0.start_time", mirror.OptStartTime.Format(time.RFC3339))
+		}
+		if mirror.External != nil {
+			d.Set("mirror.0.external.api", mirror.External.ApiPrefix)
+			d.Set("mirror.0.external.deliver", mirror.External.DeliverPrefix)
+		}
+	}
+
+	if str.IsSourced() {
+		for i, source := range str.Sources() {
+			d.Set(fmt.Sprintf("source.%d.name", i), source.Name)
+			d.Set(fmt.Sprintf("source.%d.filter_subject", i), source.FilterSubject)
+			d.Set(fmt.Sprintf("source.%d.start_seq", i), source.OptStartSeq)
+			if source.OptStartTime != nil {
+				d.Set(fmt.Sprintf("source.%d.start_time", i), source.OptStartTime.Format(time.RFC3339))
+			}
+			if source.External != nil {
+				d.Set(fmt.Sprintf("mirror.%d.external.api", i), source.External.ApiPrefix)
+				d.Set(fmt.Sprintf("mirror.%d.external.deliver", i), source.External.DeliverPrefix)
+			}
+		}
+	}
 	return nil
 }
 
