@@ -10,4 +10,5 @@ require (
 	github.com/nats-io/nats-server/v2 v2.2.0
 	github.com/nats-io/nats.go v1.10.1-0.20210313040237-18aff2894af3
 	github.com/xeipuuv/gojsonschema v1.2.0
+	github.com/zclconf/go-cty v1.7.1 // indirect
 )
