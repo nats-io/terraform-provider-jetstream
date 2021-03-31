@@ -138,6 +138,20 @@ func resourceConsumer() *schema.Resource {
 				ValidateFunc: validation.IntAtLeast(0),
 				ForceNew:     true,
 			},
+			"heartbeat": {
+				Type:        schema.TypeInt,
+				Description: "Enable heartbeat messages for push consumers, duration specified in seconds",
+				Optional:    true,
+				Default:     "",
+				ForceNew:    true,
+			},
+			"flow_control": {
+				Type:        schema.TypeBool,
+				Description: "Enable flow control for push consumers",
+				Optional:    true,
+				Default:     false,
+				ForceNew:    true,
+			},
 		},
 	}
 }
@@ -153,6 +167,8 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 		DeliverPolicy:   api.DeliverAll,
 		RateLimit:       uint64(d.Get("ratelimit").(int)),
 		MaxAckPending:   d.Get("max_ack_pending").(int),
+		FlowControl:     d.Get("flow_control").(bool),
+		Heartbeat:       time.Duration(d.Get("heartbeat").(int)) * time.Second,
 	}
 
 	seq := uint64(d.Get("stream_sequence").(int))
@@ -264,6 +280,8 @@ func resourceConsumerRead(d *schema.ResourceData, m interface{}) error {
 	d.Set("start_time", "")
 	d.Set("ratelimit", cons.RateLimit())
 	d.Set("max_ack_pending", cons.MaxAckPending())
+	d.Set("heartbeat", cons.Heartbeat().Seconds())
+	d.Set("flow_control", cons.FlowControl())
 
 	switch cons.DeliverPolicy() {
 	case api.DeliverAll:

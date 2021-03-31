@@ -37,3 +37,5 @@ resource "jetstream_consumer" "ORDERS_NEW" {
  * `stream_id` - The name of the Stream that this consumer consumes
  * `stream_sequence` - (optional) The Stream Sequence that will be the first message delivered by this Consumer
  * `ratelimit` - (optional) The rate limit for delivering messages to push consumers, expressed in bits per second
+ * `heartbeat` - (optional) Enable heartbeat messages for push consumers, duration specified in seconds
+ * `flow_control` - (optional) Enable flow control for push consumers

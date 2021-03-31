@@ -1,14 +1,13 @@
 module github.com/nats-io/terraform-provider-jetstream
 
-go 1.14
+go 1.16
 
 require (
-	github.com/google/go-cmp v0.5.1
-	github.com/hashicorp/go-hclog v0.14.1 // indirect
-	github.com/hashicorp/terraform-plugin-sdk v1.16.0
-	github.com/nats-io/jsm.go v0.0.21-0.20210204172809-a5b9308c71dd
-	github.com/nats-io/jwt v1.1.0
-	github.com/nats-io/nats-server/v2 v2.1.8-0.20210204041413-d71c845a929d
-	github.com/nats-io/nats.go v1.10.1-0.20210127212649-5b4924938a9a
+	github.com/google/go-cmp v0.5.5
+	github.com/hashicorp/terraform-plugin-sdk v1.16.1
+	github.com/nats-io/jsm.go v0.0.23-0.20210323210348-e60ab2aa58ae
+	github.com/nats-io/jwt v1.2.2
+	github.com/nats-io/nats-server/v2 v2.2.0
+	github.com/nats-io/nats.go v1.10.1-0.20210313040237-18aff2894af3
 	github.com/xeipuuv/gojsonschema v1.2.0
 )
