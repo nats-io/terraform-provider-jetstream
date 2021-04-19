@@ -227,7 +227,10 @@ func resourceConsumerCreate(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	c := m.(*conn)
+	c, err := m.(func() (*conn, error))()
+	if err != nil {
+		return err
+	}
 
 	_, err = c.mgr.NewConsumerFromDefault(stream, cfg)
 	if err != nil {
@@ -245,7 +248,10 @@ func resourceConsumerRead(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	c := m.(*conn)
+	c, err := m.(func() (*conn, error))()
+	if err != nil {
+		return err
+	}
 
 	known, err := c.mgr.IsKnownStream(stream)
 	if err != nil {
@@ -332,7 +338,10 @@ func resourceConsumerDelete(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	c := m.(*conn)
+	c, err := m.(func() (*conn, error))()
+	if err != nil {
+		return err
+	}
 
 	known, err := c.mgr.IsKnownConsumer(streamName, durableName)
 	if err != nil {

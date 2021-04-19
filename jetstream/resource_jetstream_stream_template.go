@@ -125,7 +125,10 @@ func resourceStreamTemplateCreate(d *schema.ResourceData, m interface{}) error {
 	name := cfg.Name
 	cfg.Name = ""
 
-	c := m.(*conn)
+	c, err := m.(func() (*conn, error))()
+	if err != nil {
+		return err
+	}
 
 	_, err = c.mgr.NewStreamTemplate(name, uint32(d.Get("max_streams").(int)), cfg)
 	if err != nil {
@@ -143,7 +146,10 @@ func resourceStreamTemplateRead(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	c := m.(*conn)
+	c, err := m.(func() (*conn, error))()
+	if err != nil {
+		return err
+	}
 
 	known, err := c.mgr.IsKnownStreamTemplate(tname)
 	if err != nil {
@@ -202,7 +208,10 @@ func resourceStreamTemplateDelete(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	c := m.(*conn)
+	c, err := m.(func() (*conn, error))()
+	if err != nil {
+		return err
+	}
 
 	known, err := c.mgr.IsKnownStreamTemplate(name)
 	if err != nil {
