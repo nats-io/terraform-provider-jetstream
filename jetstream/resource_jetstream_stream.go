@@ -6,7 +6,9 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
+	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/nats.go"
 )
 
 func resourceStream() *schema.Resource {
@@ -185,12 +187,13 @@ func resourceStreamCreate(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	c, err := m.(func() (*conn, error))()
+	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
 	if err != nil {
 		return err
 	}
+	defer nc.Close()
 
-	_, err = c.mgr.NewStreamFromDefault(cfg.Name, cfg)
+	_, err = mgr.NewStreamFromDefault(cfg.Name, cfg)
 	if err != nil {
 		return err
 	}
@@ -206,12 +209,13 @@ func resourceStreamRead(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	c, err := m.(func() (*conn, error))()
+	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
 	if err != nil {
 		return err
 	}
+	defer nc.Close()
 
-	known, err := c.mgr.IsKnownStream(name)
+	known, err := mgr.IsKnownStream(name)
 	if err != nil {
 		return fmt.Errorf("could not determine if stream %q is known: %s", name, err)
 	}
@@ -220,7 +224,7 @@ func resourceStreamRead(d *schema.ResourceData, m interface{}) error {
 		return nil
 	}
 
-	str, err := c.mgr.LoadStream(name)
+	str, err := mgr.LoadStream(name)
 	if err != nil {
 		return fmt.Errorf("could not load stream %q: %s", name, err)
 	}
@@ -295,12 +299,13 @@ func resourceStreamRead(d *schema.ResourceData, m interface{}) error {
 func resourceStreamUpdate(d *schema.ResourceData, m interface{}) error {
 	name := d.Get("name").(string)
 
-	c, err := m.(func() (*conn, error))()
+	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
 	if err != nil {
 		return err
 	}
+	defer nc.Close()
 
-	known, err := c.mgr.IsKnownStream(name)
+	known, err := mgr.IsKnownStream(name)
 	if err != nil {
 		return err
 	}
@@ -309,7 +314,7 @@ func resourceStreamUpdate(d *schema.ResourceData, m interface{}) error {
 		return nil
 	}
 
-	str, err := c.mgr.LoadStream(name)
+	str, err := mgr.LoadStream(name)
 	if err != nil {
 		return err
 	}
@@ -330,12 +335,13 @@ func resourceStreamUpdate(d *schema.ResourceData, m interface{}) error {
 func resourceStreamDelete(d *schema.ResourceData, m interface{}) error {
 	name := d.Get("name").(string)
 
-	c, err := m.(func() (*conn, error))()
+	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
 	if err != nil {
 		return err
 	}
+	defer nc.Close()
 
-	known, err := c.mgr.IsKnownStream(name)
+	known, err := mgr.IsKnownStream(name)
 	if err != nil {
 		return err
 	}
@@ -344,7 +350,7 @@ func resourceStreamDelete(d *schema.ResourceData, m interface{}) error {
 		return nil
 	}
 
-	str, err := c.mgr.LoadStream(name)
+	str, err := mgr.LoadStream(name)
 	if err != nil {
 		return err
 	}
