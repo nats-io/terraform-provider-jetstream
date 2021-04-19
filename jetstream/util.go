@@ -196,13 +196,8 @@ func wipeSlice(buf []byte) {
 	}
 }
 
-type conn struct {
-	nc  *nats.Conn
-	mgr *jsm.Manager
-}
-
 func connectMgr(d *schema.ResourceData) (interface{}, error) {
-	return func() (*conn, error) {
+	return func() (*nats.Conn, *jsm.Manager, error) {
 		var (
 			creds    string
 			credData []byte
@@ -253,14 +248,14 @@ func connectMgr(d *schema.ResourceData) (interface{}, error) {
 
 		nc, err := nats.Connect(servers, opts...)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		mgr, err := jsm.New(nc, jsm.WithAPIValidation(new(SchemaValidator)))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
-		return &conn{nc, mgr}, err
+		return nc, mgr, err
 	}, nil
 }

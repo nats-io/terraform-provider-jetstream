@@ -3,7 +3,9 @@ package jetstream
 import (
 	"fmt"
 
+	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/nats.go"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
@@ -125,12 +127,13 @@ func resourceStreamTemplateCreate(d *schema.ResourceData, m interface{}) error {
 	name := cfg.Name
 	cfg.Name = ""
 
-	c, err := m.(func() (*conn, error))()
+	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
 	if err != nil {
 		return err
 	}
+	defer nc.Close()
 
-	_, err = c.mgr.NewStreamTemplate(name, uint32(d.Get("max_streams").(int)), cfg)
+	_, err = mgr.NewStreamTemplate(name, uint32(d.Get("max_streams").(int)), cfg)
 	if err != nil {
 		return err
 	}
@@ -146,12 +149,13 @@ func resourceStreamTemplateRead(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	c, err := m.(func() (*conn, error))()
+	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
 	if err != nil {
 		return err
 	}
+	defer nc.Close()
 
-	known, err := c.mgr.IsKnownStreamTemplate(tname)
+	known, err := mgr.IsKnownStreamTemplate(tname)
 	if err != nil {
 		return fmt.Errorf("could not determine if stream template %q is known: %s", tname, err)
 	}
@@ -160,7 +164,7 @@ func resourceStreamTemplateRead(d *schema.ResourceData, m interface{}) error {
 		return nil
 	}
 
-	template, err := c.mgr.LoadStreamTemplate(tname)
+	template, err := mgr.LoadStreamTemplate(tname)
 	if err != nil {
 		return fmt.Errorf("could not load stream template %q: %s", tname, err)
 	}
@@ -208,12 +212,13 @@ func resourceStreamTemplateDelete(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	c, err := m.(func() (*conn, error))()
+	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
 	if err != nil {
 		return err
 	}
+	defer nc.Close()
 
-	known, err := c.mgr.IsKnownStreamTemplate(name)
+	known, err := mgr.IsKnownStreamTemplate(name)
 	if err != nil {
 		return err
 	}
@@ -222,7 +227,7 @@ func resourceStreamTemplateDelete(d *schema.ResourceData, m interface{}) error {
 		return nil
 	}
 
-	str, err := c.mgr.LoadStreamTemplate(name)
+	str, err := mgr.LoadStreamTemplate(name)
 	if err != nil {
 		d.SetId("")
 		return nil

@@ -8,7 +8,9 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
+	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/nats.go"
 )
 
 func resourceConsumer() *schema.Resource {
@@ -227,12 +229,13 @@ func resourceConsumerCreate(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	c, err := m.(func() (*conn, error))()
+	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
 	if err != nil {
 		return err
 	}
+	defer nc.Close()
 
-	_, err = c.mgr.NewConsumerFromDefault(stream, cfg)
+	_, err = mgr.NewConsumerFromDefault(stream, cfg)
 	if err != nil {
 		return err
 	}
@@ -248,12 +251,13 @@ func resourceConsumerRead(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	c, err := m.(func() (*conn, error))()
+	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
 	if err != nil {
 		return err
 	}
+	defer nc.Close()
 
-	known, err := c.mgr.IsKnownStream(stream)
+	known, err := mgr.IsKnownStream(stream)
 	if err != nil {
 		return fmt.Errorf("could not determine if stream %q is known: %s", name, err)
 	}
@@ -262,7 +266,7 @@ func resourceConsumerRead(d *schema.ResourceData, m interface{}) error {
 		return nil
 	}
 
-	known, err = c.mgr.IsKnownConsumer(stream, name)
+	known, err = mgr.IsKnownConsumer(stream, name)
 	if err != nil {
 		return fmt.Errorf("could not determine if %q > %q is a known consumer: %s", stream, name, err)
 	}
@@ -271,7 +275,7 @@ func resourceConsumerRead(d *schema.ResourceData, m interface{}) error {
 		return nil
 	}
 
-	cons, err := c.mgr.LoadConsumer(stream, name)
+	cons, err := mgr.LoadConsumer(stream, name)
 	if err != nil {
 		return err
 	}
@@ -338,12 +342,13 @@ func resourceConsumerDelete(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	c, err := m.(func() (*conn, error))()
+	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
 	if err != nil {
 		return err
 	}
+	defer nc.Close()
 
-	known, err := c.mgr.IsKnownConsumer(streamName, durableName)
+	known, err := mgr.IsKnownConsumer(streamName, durableName)
 	if err != nil {
 		return err
 	}
@@ -352,7 +357,7 @@ func resourceConsumerDelete(d *schema.ResourceData, m interface{}) error {
 		return nil
 	}
 
-	cons, err := c.mgr.LoadConsumer(streamName, durableName)
+	cons, err := mgr.LoadConsumer(streamName, durableName)
 	if err != nil {
 		return err
 	}
