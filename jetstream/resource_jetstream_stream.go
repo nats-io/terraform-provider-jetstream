@@ -185,7 +185,10 @@ func resourceStreamCreate(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	c := m.(*conn)
+	c, err := m.(func() (*conn, error))()
+	if err != nil {
+		return err
+	}
 
 	_, err = c.mgr.NewStreamFromDefault(cfg.Name, cfg)
 	if err != nil {
@@ -203,7 +206,10 @@ func resourceStreamRead(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	c := m.(*conn)
+	c, err := m.(func() (*conn, error))()
+	if err != nil {
+		return err
+	}
 
 	known, err := c.mgr.IsKnownStream(name)
 	if err != nil {
@@ -289,7 +295,10 @@ func resourceStreamRead(d *schema.ResourceData, m interface{}) error {
 func resourceStreamUpdate(d *schema.ResourceData, m interface{}) error {
 	name := d.Get("name").(string)
 
-	c := m.(*conn)
+	c, err := m.(func() (*conn, error))()
+	if err != nil {
+		return err
+	}
 
 	known, err := c.mgr.IsKnownStream(name)
 	if err != nil {
@@ -321,7 +330,10 @@ func resourceStreamUpdate(d *schema.ResourceData, m interface{}) error {
 func resourceStreamDelete(d *schema.ResourceData, m interface{}) error {
 	name := d.Get("name").(string)
 
-	c := m.(*conn)
+	c, err := m.(func() (*conn, error))()
+	if err != nil {
+		return err
+	}
 
 	known, err := c.mgr.IsKnownStream(name)
 	if err != nil {

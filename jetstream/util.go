@@ -202,63 +202,65 @@ type conn struct {
 }
 
 func connectMgr(d *schema.ResourceData) (interface{}, error) {
-	var (
-		creds    string
-		credData []byte
-		servers  string
-	)
+	return func() (*conn, error) {
+		var (
+			creds    string
+			credData []byte
+			servers  string
+		)
 
-	s := d.Get("credentials")
-	if s != nil {
-		creds = s.(string)
-	}
-
-	s = d.Get("credential_data")
-	if s != nil {
-		credData = []byte(s.(string))
-	}
-
-	s = d.Get("servers")
-	if s != nil {
-		servers = s.(string)
-	}
-
-	var opts []nats.Option
-
-	switch {
-	case creds != "":
-		opts = append(opts, nats.UserCredentials(creds))
-
-	case len(credData) > 0:
-		defer wipeSlice(credData)
-
-		userCB := func() (string, error) {
-			return jwt.ParseDecoratedJWT(credData)
+		s := d.Get("credentials")
+		if s != nil {
+			creds = s.(string)
 		}
 
-		sigCB := func(nonce []byte) ([]byte, error) {
-			kp, err := jwt.ParseDecoratedNKey(credData)
-			if err != nil {
-				return nil, err
+		s = d.Get("credential_data")
+		if s != nil {
+			credData = []byte(s.(string))
+		}
+
+		s = d.Get("servers")
+		if s != nil {
+			servers = s.(string)
+		}
+
+		var opts []nats.Option
+
+		switch {
+		case creds != "":
+			opts = append(opts, nats.UserCredentials(creds))
+
+		case len(credData) > 0:
+			defer wipeSlice(credData)
+
+			userCB := func() (string, error) {
+				return jwt.ParseDecoratedJWT(credData)
 			}
-			defer kp.Wipe()
 
-			return kp.Sign(nonce)
+			sigCB := func(nonce []byte) ([]byte, error) {
+				kp, err := jwt.ParseDecoratedNKey(credData)
+				if err != nil {
+					return nil, err
+				}
+				defer kp.Wipe()
+
+				return kp.Sign(nonce)
+			}
+
+			opts = append(opts, nats.UserJWT(userCB, sigCB))
+
 		}
 
-		opts = append(opts, nats.UserJWT(userCB, sigCB))
+		nc, err := nats.Connect(servers, opts...)
+		if err != nil {
+			return nil, err
+		}
 
-	}
+		mgr, err := jsm.New(nc, jsm.WithAPIValidation(new(SchemaValidator)))
+		if err != nil {
+			return nil, err
+		}
 
-	nc, err := nats.Connect(servers, opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	mgr, err := jsm.New(nc, jsm.WithAPIValidation(new(SchemaValidator)))
-	if err != nil {
-		return nil, err
-	}
-
-	return &conn{nc, mgr}, err
+		return &conn{nc, mgr}, err
+	}, nil
 }
