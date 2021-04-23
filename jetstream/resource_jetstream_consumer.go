@@ -136,7 +136,7 @@ func resourceConsumer() *schema.Resource {
 				Type:         schema.TypeInt,
 				Description:  "Maximum pending Acks before consumers are paused",
 				Optional:     true,
-				Default:      0,
+				Default:      20000,
 				ValidateFunc: validation.IntAtLeast(0),
 				ForceNew:     true,
 			},
