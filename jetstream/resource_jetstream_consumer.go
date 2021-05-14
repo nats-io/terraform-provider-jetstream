@@ -154,6 +154,14 @@ func resourceConsumer() *schema.Resource {
 				Default:     false,
 				ForceNew:    true,
 			},
+			"max_waiting": {
+				Type:         schema.TypeInt,
+				Description:  "The number of pulls that can be outstanding on a pull consumer, pulls received after this is reached are ignored",
+				Optional:     true,
+				Default:      512,
+				ForceNew:     true,
+				ValidateFunc: validation.IntAtLeast(0),
+			},
 		},
 	}
 }
@@ -171,6 +179,10 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 		MaxAckPending:   d.Get("max_ack_pending").(int),
 		FlowControl:     d.Get("flow_control").(bool),
 		Heartbeat:       time.Duration(d.Get("heartbeat").(int)) * time.Second,
+	}
+
+	if cfg.DeliverSubject != "" {
+		cfg.MaxWaiting = d.Get("max_waiting").(int)
 	}
 
 	seq := uint64(d.Get("stream_sequence").(int))
@@ -292,6 +304,7 @@ func resourceConsumerRead(d *schema.ResourceData, m interface{}) error {
 	d.Set("max_ack_pending", cons.MaxAckPending())
 	d.Set("heartbeat", cons.Heartbeat().Seconds())
 	d.Set("flow_control", cons.FlowControl())
+	d.Set("max_waiting", cons.MaxWaiting())
 
 	switch cons.DeliverPolicy() {
 	case api.DeliverAll:

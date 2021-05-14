@@ -39,3 +39,4 @@ resource "jetstream_consumer" "ORDERS_NEW" {
  * `ratelimit` - (optional) The rate limit for delivering messages to push consumers, expressed in bits per second
  * `heartbeat` - (optional) Enable heartbeat messages for push consumers, duration specified in seconds
  * `flow_control` - (optional) Enable flow control for push consumers
+ * `max_waiting` - (optional) The number of pulls that can be outstanding on a pull consumer, pulls received after this is reached are ignored
