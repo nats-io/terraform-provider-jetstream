@@ -28,6 +28,7 @@ resource "jetstream_stream" "test" {
 	name = "TEST"
 	subjects = ["OTHER.*"]
 	max_msgs = 10
+	max_msgs_per_subject = 2
 }
 `
 
@@ -117,6 +118,7 @@ func TestResourceStream(t *testing.T) {
 					testStreamExist(t, mgr, "TEST"),
 					testStreamHasSubjects(t, mgr, "TEST", []string{"OTHER.*"}),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "max_msgs", "10"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "max_msgs_per_subject", "2"),
 				),
 			},
 			{

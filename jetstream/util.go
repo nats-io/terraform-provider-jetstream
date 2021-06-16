@@ -153,6 +153,10 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		Placement:    placement,
 	}
 
+	if limit := d.Get("max_msgs_per_subject"); limit != nil {
+		stream.MaxMsgsPer = int64(limit.(int))
+	}
+
 	mirror, ok := d.GetOk("mirror")
 	if ok {
 		sources, err := streamSourceFromResourceData(mirror)
