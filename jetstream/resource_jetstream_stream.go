@@ -89,6 +89,12 @@ func resourceStream() *schema.Resource {
 				Optional:    true,
 				Default:     -1,
 			},
+			"max_msgs_per_subject": {
+				Type:        schema.TypeInt,
+				Description: "The maximum amount of messages that can be kept in the stream on a per-subject basis",
+				Optional:    true,
+				Default:     -1,
+			},
 			"max_bytes": {
 				Type:        schema.TypeInt,
 				Description: "The maximum size of all messages that can be kept in the stream",
@@ -238,6 +244,7 @@ func resourceStreamRead(d *schema.ResourceData, m interface{}) error {
 	d.Set("subjects", str.Subjects())
 	d.Set("max_consumers", str.MaxConsumers())
 	d.Set("max_msgs", int(str.MaxMsgs()))
+	d.Set("max_msgs_per_subject", int(str.MaxMsgsPerSubject()))
 	d.Set("max_age", str.MaxAge().Seconds())
 	d.Set("duplicate_window", str.DuplicateWindow().Seconds())
 	d.Set("max_bytes", str.MaxBytes())
