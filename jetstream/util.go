@@ -14,6 +14,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
+func parseStreamKVID(id string) (string, error) {
+	if !kvIdRegex.MatchString(id) {
+		return "", fmt.Errorf("invalid kv bucket id %q", id)
+	}
+
+	matches := kvIdRegex.FindStringSubmatch(id)
+	return matches[1], nil
+}
+
 func parseStreamID(id string) (string, error) {
 	if !streamIdRegex.MatchString(id) {
 		return "", fmt.Errorf("invalid stream id %q", id)
