@@ -197,3 +197,29 @@ resource "jetstream_consumer" "ORDERS_NEW" {
  * `stream_id` - The name of the Stream that this consumer consumes
  * `stream_sequence` - (optional) The Stream Sequence that will be the first message delivered by this Consumer
  * `ratelimit` - (optional) The rate limit for delivering messages to push consumers, expressed in bits per second
+
+## jetstream_kv_bucket
+
+Creates a JetStream based KV bucket
+
+### Example
+
+```terraform
+resource "jetstream_kv_bucket" "test" {
+  name = "TEST"
+  ttl = 60
+  history = 10
+  max_value_size = 1024
+  max_bucket_size = 10240
+}
+```
+
+### Attribute Reference
+
+ * `name` - (required) The unique name of the KV bucket, must match `\A[a-zA-Z0-9_-]+\z`
+ * `history` - (optional) Number of historic values to keep
+ * `ttl` - (optional) How many seconds to keep values for, keeps forever when not set
+ * `placement` - (optional) JetStream cluster name to place the KV bucket in
+ * `max_value_size` - (optional) Maximum size of any value
+ * `max_bucket_size` - (optional) The maximum size of all data in the bucket
+ * `replicas` - (optional) How many replicas to keep on a JetStream cluster
