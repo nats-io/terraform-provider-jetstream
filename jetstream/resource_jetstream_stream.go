@@ -74,6 +74,12 @@ func resourceStream() *schema.Resource {
 				Required:    true,
 				ForceNew:    true,
 			},
+			"description": {
+				Type:        schema.TypeString,
+				Description: "Contains additional information about this consumer",
+				Optional:    true,
+				ForceNew:    false,
+			},
 			"subjects": {
 				Type:        schema.TypeList,
 				MinItems:    1,
@@ -241,6 +247,7 @@ func resourceStreamRead(d *schema.ResourceData, m interface{}) error {
 	}
 
 	d.Set("name", str.Name())
+	d.Set("description", str.Description())
 	d.Set("subjects", str.Subjects())
 	d.Set("max_consumers", str.MaxConsumers())
 	d.Set("max_msgs", int(str.MaxMsgs()))

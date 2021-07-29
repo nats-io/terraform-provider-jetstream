@@ -21,6 +21,7 @@ resource "jetstream_stream" "test" {
 
 resource "jetstream_consumer" "TEST_C1" {
   stream_id      = jetstream_stream.test.id
+  description    = "testing consumer"
   durable_name   = "C1"
   deliver_all    = true
 }
@@ -69,6 +70,7 @@ func TestResourceConsumer(t *testing.T) {
 					testStreamExist(t, mgr, "TEST"),
 					testConsumerExist(t, mgr, "TEST", "C1"),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C1", "stream_sequence", "0"),
+					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C1", "description", "testing consumer"),
 				),
 			},
 			{

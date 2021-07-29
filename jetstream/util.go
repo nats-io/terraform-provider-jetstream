@@ -162,6 +162,10 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		Placement:    placement,
 	}
 
+	if description, ok := d.GetOk("description"); ok {
+		stream.Description = description.(string)
+	}
+
 	if limit := d.Get("max_msgs_per_subject"); limit != nil {
 		stream.MaxMsgsPer = int64(limit.(int))
 	}

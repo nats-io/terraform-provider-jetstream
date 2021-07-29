@@ -30,6 +30,12 @@ func resourceConsumer() *schema.Resource {
 				ForceNew:     true,
 				ValidateFunc: validation.StringIsNotEmpty,
 			},
+			"description": {
+				Type:        schema.TypeString,
+				Description: "Contains additional information about this consumer",
+				Optional:    true,
+				ForceNew:    true,
+			},
 			"durable_name": {
 				Type:         schema.TypeString,
 				Description:  "The durable name of the Consumer",
@@ -47,7 +53,7 @@ func resourceConsumer() *schema.Resource {
 				Type:         schema.TypeInt,
 				Description:  "The Stream Sequence that will be the first message delivered by this Consumer",
 				Optional:     true,
-				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last", "deliver_new"},
+				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last", "deliver_new", "deliver_last_per_subject"},
 				ForceNew:     true,
 			},
 			"start_time": {
@@ -55,21 +61,28 @@ func resourceConsumer() *schema.Resource {
 				Description:  "The timestamp of the first message that will be delivered by this Consumer",
 				ValidateFunc: validation.IsRFC3339Time,
 				Optional:     true,
-				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last", "deliver_new"},
+				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last", "deliver_new", "deliver_last_per_subject"},
 				ForceNew:     true,
 			},
 			"deliver_all": {
 				Type:         schema.TypeBool,
 				Description:  "Starts at the first available message in the Stream",
 				Optional:     true,
-				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last", "deliver_new"},
+				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last", "deliver_new", "deliver_last_per_subject"},
+				ForceNew:     true,
+			},
+			"deliver_last_per_subject": {
+				Type:         schema.TypeBool,
+				Description:  "Starts with the last message for each subject matched by filter",
+				Optional:     true,
+				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last", "deliver_new", "deliver_last_per_subject"},
 				ForceNew:     true,
 			},
 			"deliver_last": {
 				Type:         schema.TypeBool,
 				Description:  "Starts at the latest available message in the Stream",
 				Optional:     true,
-				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last", "deliver_new"},
+				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last", "deliver_new", "deliver_last_per_subject"},
 				ForceNew:     true,
 			},
 			"deliver_new": {
@@ -181,6 +194,10 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 		Heartbeat:       time.Duration(d.Get("heartbeat").(int)) * time.Second,
 	}
 
+	if description, ok := d.GetOk("description"); ok {
+		cfg.Description = description.(string)
+	}
+
 	if cfg.DeliverSubject != "" {
 		cfg.MaxWaiting = d.Get("max_waiting").(int)
 	}
@@ -194,6 +211,8 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 		cfg.DeliverPolicy = api.DeliverLast
 	case d.Get("deliver_new").(bool):
 		cfg.DeliverPolicy = api.DeliverNew
+	case d.Get("deliver_last_per_subject").(bool):
+		cfg.DeliverPolicy = api.DeliverLastPerSubject
 	case seq > 0:
 		cfg.DeliverPolicy = api.DeliverByStartSequence
 		cfg.OptStartSeq = seq
@@ -293,6 +312,7 @@ func resourceConsumerRead(d *schema.ResourceData, m interface{}) error {
 	}
 
 	d.Set("stream", cons.StreamName())
+	d.Set("description", cons.Description())
 	d.Set("durable_name", cons.DurableName())
 	d.Set("delivery_subject", cons.DeliverySubject())
 	d.Set("ack_wait", cons.AckWait().Seconds())
@@ -313,6 +333,8 @@ func resourceConsumerRead(d *schema.ResourceData, m interface{}) error {
 		d.Set("delivery_new", true)
 	case api.DeliverLast:
 		d.Set("delivery_last", true)
+	case api.DeliverLastPerSubject:
+		d.Set("deliver_last_per_subject", true)
 	case api.DeliverByStartSequence:
 		d.Set("stream_sequence", cons.StartSequence())
 	case api.DeliverByStartTime:

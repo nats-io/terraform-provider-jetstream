@@ -17,6 +17,7 @@ provider "jetstream" {
 resource "jetstream_stream" "test" {
 	name = "TEST"
 	subjects = ["TEST.*"]
+    description = "testing stream"
 }`
 
 const testStreamConfig_OtherSubjects = `
@@ -110,6 +111,7 @@ func TestResourceStream(t *testing.T) {
 					testStreamExist(t, mgr, "TEST"),
 					testStreamHasSubjects(t, mgr, "TEST", []string{"TEST.*"}),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "max_msgs", "-1"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "description", "testing stream"),
 				),
 			},
 			{
