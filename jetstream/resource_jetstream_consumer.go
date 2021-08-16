@@ -92,6 +92,12 @@ func resourceConsumer() *schema.Resource {
 				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last", "deliver_new"},
 				ForceNew:     true,
 			},
+			"delivery_group": {
+				Type:        schema.TypeString,
+				Description: "When set Push consumers will only deliver messages to subscriptions with this group set",
+				Optional:    true,
+				ForceNew:    true,
+			},
 			"ack_policy": {
 				Type:         schema.TypeString,
 				Description:  "The delivery acknowledgement policy to apply to the Consumer",
@@ -200,6 +206,7 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 
 	if cfg.DeliverSubject != "" {
 		cfg.MaxWaiting = d.Get("max_waiting").(int)
+		cfg.DeliverGroup = d.Get("delivery_group").(string)
 	}
 
 	seq := uint64(d.Get("stream_sequence").(int))
@@ -325,6 +332,7 @@ func resourceConsumerRead(d *schema.ResourceData, m interface{}) error {
 	d.Set("heartbeat", cons.Heartbeat().Seconds())
 	d.Set("flow_control", cons.FlowControl())
 	d.Set("max_waiting", cons.MaxWaiting())
+	d.Set("delivery_group", cons.DeliverGroup())
 
 	switch cons.DeliverPolicy() {
 	case api.DeliverAll:
