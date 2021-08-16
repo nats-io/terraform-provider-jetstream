@@ -28,6 +28,7 @@ resource "jetstream_consumer" "ORDERS_NEW" {
  * `deliver_all` - (optional) Starts at the first available message in the Stream
  * `deliver_last` - (optional) Starts at the latest available message in the Stream
  * `delivery_subject` - (optional) The subject where a Push-based consumer will deliver messages
+ * `delivery_group` - (optional) When set Push consumers will only deliver messages to subscriptions with this group set
  * `durable_name` - The durable name of the Consumer
  * `filter_subject` - (optional) Only receive a subset of messages from the Stream based on the subject they entered the Stream on
  * `max_delivery` - (optional) Maximum deliveries to attempt for each message
