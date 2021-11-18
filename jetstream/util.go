@@ -2,6 +2,7 @@ package jetstream
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -207,6 +208,26 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 	return stream, nil
 }
 
+func newTempPEMFile(pemContents string) (filename string, cleanup func(), err error) {
+	file, err := os.CreateTemp("", "*.pem")
+	if err != nil {
+		return
+	}
+	defer file.Close()
+
+	_, err = file.WriteString(pemContents)
+
+	if err != nil {
+		return
+	}
+
+	filename = file.Name()
+	cleanup = func() {
+		_ = os.Remove(filename)
+	}
+	return
+}
+
 func wipeSlice(buf []byte) {
 	for i := range buf {
 		buf[i] = 'x'
@@ -216,9 +237,11 @@ func wipeSlice(buf []byte) {
 func connectMgr(d *schema.ResourceData) (interface{}, error) {
 	return func() (*nats.Conn, *jsm.Manager, error) {
 		var (
-			creds    string
-			credData []byte
-			servers  string
+			creds      string
+			credData   []byte
+			servers    string
+			ca_file    string
+			cleanupPem func() = func() {}
 		)
 
 		s := d.Get("credentials")
@@ -234,6 +257,32 @@ func connectMgr(d *schema.ResourceData) (interface{}, error) {
 		s = d.Get("servers")
 		if s != nil {
 			servers = s.(string)
+		}
+
+		s = d.Get("tls")
+
+		if s != nil {
+			set := s.(*schema.Set)
+
+			for _, v := range set.List() {
+				m := v.(map[string]interface{})
+
+				for k, v := range m {
+
+					switch {
+					case k == "ca_file" && len(v.(string)) > 0:
+						ca_file = v.(string)
+					case k == "ca_file_data" && len(v.(string)) > 0:
+						file, cleanup, err := newTempPEMFile(v.(string))
+
+						if err != nil {
+							return nil, nil, err
+						}
+						cleanupPem = cleanup
+						ca_file = file
+					}
+				}
+			}
 		}
 
 		var opts []nats.Option
@@ -260,7 +309,9 @@ func connectMgr(d *schema.ResourceData) (interface{}, error) {
 			}
 
 			opts = append(opts, nats.UserJWT(userCB, sigCB))
-
+		case len(ca_file) > 0:
+			defer cleanupPem()
+			opts = append(opts, nats.RootCAs(ca_file))
 		}
 
 		nc, err := nats.Connect(servers, opts...)
