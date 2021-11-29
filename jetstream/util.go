@@ -216,16 +216,15 @@ func newTempPEMFile(pemContents string) (filename string, cleanup func(), err er
 	defer file.Close()
 
 	_, err = file.WriteString(pemContents)
-
 	if err != nil {
 		return
 	}
 
-	filename = file.Name()
 	cleanup = func() {
 		_ = os.Remove(filename)
 	}
-	return
+
+	return file.Name(), cleanup, err
 }
 
 func wipeSlice(buf []byte) {
@@ -240,8 +239,11 @@ func connectMgr(d *schema.ResourceData) (interface{}, error) {
 			creds      string
 			credData   []byte
 			servers    string
-			ca_file    string
-			cleanupPem func() = func() {}
+			user       string
+			pass       string
+			nkey       string
+			caFile     string
+			cleanupPem = func() {}
 		)
 
 		s := d.Get("credentials")
@@ -259,8 +261,22 @@ func connectMgr(d *schema.ResourceData) (interface{}, error) {
 			servers = s.(string)
 		}
 
-		s = d.Get("tls")
+		s = d.Get("user")
+		if s != nil {
+			user = s.(string)
+		}
 
+		s = d.Get("password")
+		if s != nil {
+			pass = s.(string)
+		}
+
+		s = d.Get("nkey")
+		if s != nil {
+			nkey = s.(string)
+		}
+
+		s = d.Get("tls")
 		if s != nil {
 			set := s.(*schema.Set)
 
@@ -268,18 +284,17 @@ func connectMgr(d *schema.ResourceData) (interface{}, error) {
 				m := v.(map[string]interface{})
 
 				for k, v := range m {
-
 					switch {
 					case k == "ca_file" && len(v.(string)) > 0:
-						ca_file = v.(string)
+						caFile = v.(string)
 					case k == "ca_file_data" && len(v.(string)) > 0:
 						file, cleanup, err := newTempPEMFile(v.(string))
-
 						if err != nil {
 							return nil, nil, err
 						}
+
 						cleanupPem = cleanup
-						ca_file = file
+						caFile = file
 					}
 				}
 			}
@@ -309,9 +324,25 @@ func connectMgr(d *schema.ResourceData) (interface{}, error) {
 			}
 
 			opts = append(opts, nats.UserJWT(userCB, sigCB))
-		case len(ca_file) > 0:
+		}
+
+		switch {
+		case user != "" && pass == "":
+			opts = append(opts, nats.UserInfo(user, pass))
+		case user != "":
+			opts = append(opts, nats.Token(user))
+		case nkey != "":
+			nko, err := nats.NkeyOptionFromSeed(nkey)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			opts = append(opts, nko)
+		}
+
+		if len(caFile) > 0 {
 			defer cleanupPem()
-			opts = append(opts, nats.RootCAs(ca_file))
+			opts = append(opts, nats.RootCAs(caFile))
 		}
 
 		nc, err := nats.Connect(servers, opts...)

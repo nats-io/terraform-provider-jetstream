@@ -32,6 +32,23 @@ func Provider() terraform.ResourceProvider {
 				Optional:    true,
 				Description: "The contents of the NATS 2.0 Credentials file to use",
 			},
+			"user": {
+				Type:          schema.TypeString,
+				Optional:      true,
+				Description:   "Connect using an username, used as token when no password is given",
+				ConflictsWith: []string{"nkey", "credentials", "credential_data"},
+			},
+			"password": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "Connect using a password",
+			},
+			"nkey": {
+				Type:          schema.TypeString,
+				Optional:      true,
+				Description:   "Connect using a NKEY seed stored in a file",
+				ConflictsWith: []string{"user", "credentials", "credential_data"},
+			},
 			"tls": {
 				Type:     schema.TypeSet,
 				MaxItems: 1,

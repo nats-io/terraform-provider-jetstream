@@ -93,9 +93,15 @@ provider "jetstream" {
 
 ### Argument Reference
 
- * `servers` - Comma separated list of servers to connect to
- * `credentials` - (optional) path to the credentials file to use
- * `credential_data` - (optional) the credentials as a string
+ * `servers` - The list of servers to connect to in a comma seperated list
+ * `credentials` - (optional) Fully Qualified Path to a file holding NATS credentials.
+ * `credential_data` - (optional) The NATS credentials as a string, intended to use with data providers.
+ * `user` - (optional) Connects using a username, when no password is set this is assumed to be a Token.
+ * `password` - (optional) Connects using a password
+ * `nkey` - (optional) Connects using an nkey stored in a file
+ * `tls.ca_file` - (optional) Fully Qualified Path to a file containing Root CA (PEM format). Use when the server has certs signed by an unknown authority.
+ * `tls.ca_file_data` - (optional) The Root CA PEM as a string, intended to use with data providers. Use when the server has certs signed by an unknown authority.
+
 
 ## jetstream_stream
 
@@ -198,6 +204,7 @@ resource "jetstream_consumer" "ORDERS_NEW" {
  * `stream_id` - The name of the Stream that this consumer consumes
  * `stream_sequence` - (optional) The Stream Sequence that will be the first message delivered by this Consumer
  * `ratelimit` - (optional) The rate limit for delivering messages to push consumers, expressed in bits per second
+ * `headers_only` - (optional) When true no message bodies will be delivered only headers
 
 ## jetstream_kv_bucket
 
