@@ -2,13 +2,11 @@ package jetstream
 
 import (
 	"fmt"
-	"regexp"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
 	"github.com/nats-io/jsm.go"
-	"github.com/nats-io/jsm.go/kv"
 	"github.com/nats-io/nats.go"
 )
 
@@ -24,11 +22,10 @@ func resourceKVBucket() *schema.Resource {
 
 		Schema: map[string]*schema.Schema{
 			"name": {
-				Type:         schema.TypeString,
-				Description:  "The name of the Bucket",
-				Required:     true,
-				ForceNew:     true,
-				ValidateFunc: validation.StringMatch(regexp.MustCompile(kv.ValidBucketPattern), "invalid bucket name"),
+				Type:        schema.TypeString,
+				Description: "The name of the Bucket",
+				Required:    true,
+				ForceNew:    true,
 			},
 			"history": {
 				Type:         schema.TypeInt,
@@ -45,12 +42,6 @@ func resourceKVBucket() *schema.Resource {
 				ForceNew:     false,
 				Default:      0,
 				ValidateFunc: validation.IntAtLeast(0),
-			},
-			"placement": {
-				Type:        schema.TypeString,
-				Description: "The cluster to place the bucket in",
-				Optional:    true,
-				ForceNew:    true,
 			},
 			"max_value_size": {
 				Type:         schema.TypeInt,
@@ -71,7 +62,7 @@ func resourceKVBucket() *schema.Resource {
 			"replicas": {
 				Type:         schema.TypeInt,
 				Description:  "Number of cluster replicas to store",
-				Default:      0,
+				Default:      1,
 				Optional:     true,
 				ForceNew:     true,
 				ValidateFunc: validation.All(validation.IntAtLeast(1), validation.IntAtMost(5)),
@@ -90,7 +81,6 @@ func resourceKVBucketCreate(d *schema.ResourceData, m interface{}) error {
 	name := d.Get("name").(string)
 	history := d.Get("history").(int)
 	ttl := d.Get("ttl").(int)
-	placement := d.Get("placement").(string)
 	maxV := d.Get("max_value_size").(int)
 	maxB := d.Get("max_bucket_size").(int)
 	replicas := d.Get("replicas").(int)
@@ -103,13 +93,20 @@ func resourceKVBucketCreate(d *schema.ResourceData, m interface{}) error {
 		return fmt.Errorf("bucket %s already exist", name)
 	}
 
-	_, err = kv.NewBucket(nc, name, kv.WithHistory(uint64(history)),
-		kv.WithReplicas(uint(replicas)),
-		kv.WithMaxValueSize(int32(maxV)),
-		kv.WithMaxBucketSize(int64(maxB)),
-		kv.WithTTL(time.Duration(ttl)*time.Second),
-		kv.WithPlacementCluster(placement),
-	)
+	js, err := nc.JetStream()
+	if err != nil {
+		return err
+	}
+
+	_, err = js.CreateKeyValue(&nats.KeyValueConfig{
+		Bucket:       name,
+		MaxValueSize: int32(maxV),
+		History:      uint8(history),
+		TTL:          time.Duration(ttl) * time.Second,
+		MaxBytes:     int64(maxB),
+		Storage:      nats.FileStorage,
+		Replicas:     replicas,
+	})
 	if err != nil {
 		return err
 	}
@@ -131,31 +128,27 @@ func resourceKVBucketRead(d *schema.ResourceData, m interface{}) error {
 	}
 	defer nc.Close()
 
-	bucket, err := kv.NewClient(nc, name)
+	js, err := nc.JetStream()
 	if err != nil {
 		return err
 	}
-
+	bucket, err := js.KeyValue(name)
+	if err != nil {
+		return err
+	}
 	status, err := bucket.Status()
 	if err != nil {
 		return err
 	}
 
-	ok, failed := status.Replicas()
-
 	d.Set("name", status.Bucket())
 	d.Set("history", status.History())
 	d.Set("ttl", status.TTL().Seconds())
 
-	if status.BucketLocation() == "unknown" {
-		d.Set("placement", "")
-	} else {
-		d.Set("placement", status.BucketLocation())
-	}
-
-	d.Set("max_value_size", status.MaxValueSize())
-	d.Set("max_bucket_size", status.MaxBucketSize())
-	d.Set("replicas", ok+failed)
+	jStatus := status.(*nats.KeyValueBucketStatus)
+	d.Set("max_value_size", jStatus.StreamInfo().Config.MaxMsgSize)
+	d.Set("max_bucket_size", jStatus.StreamInfo().Config.MaxBytes)
+	d.Set("replicas", jStatus.StreamInfo().Config.Replicas)
 
 	return nil
 }
@@ -169,17 +162,21 @@ func resourceKVBucketUpdate(d *schema.ResourceData, m interface{}) error {
 	}
 	defer nc.Close()
 
-	bucket, err := kv.NewClient(nc, name)
+	js, err := nc.JetStream()
 	if err != nil {
 		return err
 	}
-
+	bucket, err := js.KeyValue(name)
+	if err != nil {
+		return err
+	}
 	status, err := bucket.Status()
 	if err != nil {
 		return err
 	}
+	jStatus := status.(*nats.KeyValueBucketStatus)
 
-	str, err := mgr.LoadStream(status.BackingStore())
+	str, err := mgr.LoadStream(jStatus.StreamInfo().Config.Name)
 	if err != nil {
 		return err
 	}
@@ -212,10 +209,16 @@ func resourceKVBucketDelete(d *schema.ResourceData, m interface{}) error {
 	}
 	defer nc.Close()
 
-	bucket, err := kv.NewBucket(nc, name)
+	js, err := nc.JetStream()
 	if err != nil {
 		return err
 	}
+	err = js.DeleteKeyValue(name)
+	if err == nats.ErrStreamNotFound {
+		return nil
+	} else if err != nil {
+		return err
+	}
 
-	return bucket.Destroy()
+	return nil
 }

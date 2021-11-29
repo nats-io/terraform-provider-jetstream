@@ -18,6 +18,7 @@ func resourceConsumer() *schema.Resource {
 		Create: resourceConsumerCreate,
 		Read:   resourceConsumerRead,
 		Delete: resourceConsumerDelete,
+		Update: resourceConsumerUpdate,
 		Importer: &schema.ResourceImporter{
 			State: schema.ImportStatePassthrough,
 		},
@@ -34,7 +35,7 @@ func resourceConsumer() *schema.Resource {
 				Type:        schema.TypeString,
 				Description: "Contains additional information about this consumer",
 				Optional:    true,
-				ForceNew:    true,
+				ForceNew:    false,
 			},
 			"durable_name": {
 				Type:         schema.TypeString,
@@ -47,7 +48,7 @@ func resourceConsumer() *schema.Resource {
 				Type:        schema.TypeString,
 				Description: "The subject where a Push-based consumer will deliver messages",
 				Optional:    true,
-				ForceNew:    true,
+				ForceNew:    false,
 			},
 			"stream_sequence": {
 				Type:         schema.TypeInt,
@@ -111,14 +112,14 @@ func resourceConsumer() *schema.Resource {
 				Description: "Number of seconds to wait for acknowledgement",
 				Default:     30,
 				Optional:    true,
-				ForceNew:    true,
+				ForceNew:    false,
 			},
 			"max_delivery": {
 				Type:        schema.TypeInt,
 				Description: "Maximum deliveries to attempt for each message",
 				Default:     -1,
 				Optional:    true,
-				ForceNew:    true,
+				ForceNew:    false,
 			},
 			"filter_subject": {
 				Type:        schema.TypeString,
@@ -141,7 +142,7 @@ func resourceConsumer() *schema.Resource {
 				Optional:     true,
 				Default:      0,
 				ValidateFunc: validation.IntBetween(0, 100),
-				ForceNew:     true,
+				ForceNew:     false,
 			},
 			"ratelimit": {
 				Type:         schema.TypeInt,
@@ -157,7 +158,7 @@ func resourceConsumer() *schema.Resource {
 				Optional:     true,
 				Default:      20000,
 				ValidateFunc: validation.IntAtLeast(0),
-				ForceNew:     true,
+				ForceNew:     false,
 			},
 			"heartbeat": {
 				Type:        schema.TypeInt,
@@ -178,8 +179,15 @@ func resourceConsumer() *schema.Resource {
 				Description:  "The number of pulls that can be outstanding on a pull consumer, pulls received after this is reached are ignored",
 				Optional:     true,
 				Default:      512,
-				ForceNew:     true,
+				ForceNew:     false,
 				ValidateFunc: validation.IntAtLeast(0),
+			},
+			"headers_only": {
+				Type:        schema.TypeBool,
+				Description: "When true no message bodies will be delivered only headers",
+				Optional:    true,
+				Default:     false,
+				ForceNew:    false,
 			},
 		},
 	}
@@ -198,6 +206,7 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 		MaxAckPending:   d.Get("max_ack_pending").(int),
 		FlowControl:     d.Get("flow_control").(bool),
 		Heartbeat:       time.Duration(d.Get("heartbeat").(int)) * time.Second,
+		HeadersOnly:     d.Get("headers_only").(bool),
 	}
 
 	if description, ok := d.GetOk("description"); ok {
@@ -254,6 +263,69 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 	}
 
 	return cfg, nil
+}
+
+func resourceConsumerUpdate(d *schema.ResourceData, m interface{}) error {
+	stream := d.Get("stream_id").(string)
+	if stream == "" {
+		return fmt.Errorf("cannot determine stream name for update")
+	}
+
+	durable := d.Get("durable_name").(string)
+	if durable == "" {
+		return fmt.Errorf("cannot determine durable name for update")
+	}
+
+	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
+	if err != nil {
+		return err
+	}
+	defer nc.Close()
+
+	known, err := mgr.IsKnownConsumer(stream, durable)
+	if err != nil {
+		return err
+	}
+	if !known {
+		d.SetId("")
+		return nil
+	}
+
+	cons, err := mgr.LoadConsumer(stream, durable)
+	if err != nil {
+		return err
+	}
+
+	cfg, err := consumerConfigFromResourceData(d)
+	if err != nil {
+		return err
+	}
+
+	s := strings.TrimSuffix(cons.SampleFrequency(), "%")
+	freq, err := strconv.Atoi(s)
+	if err != nil {
+		return fmt.Errorf("failed to parse consumer sampling configuration: %v", err)
+	}
+
+	opts := []jsm.ConsumerOption{
+		jsm.ConsumerDescription(cfg.Description),
+		jsm.AckWait(cfg.AckWait),
+		jsm.MaxDeliveryAttempts(cfg.MaxDeliver),
+		jsm.SamplePercent(freq),
+		jsm.MaxAckPending(uint(cfg.MaxAckPending)),
+		jsm.MaxWaiting(uint(cfg.MaxWaiting)),
+	}
+
+	if cfg.HeadersOnly {
+		opts = append(opts, jsm.DeliverHeadersOnly())
+	}
+
+	err = cons.UpdateConfiguration(opts...)
+	if err != nil {
+		return err
+	}
+
+	return resourceConsumerRead(d, m)
 }
 
 func resourceConsumerCreate(d *schema.ResourceData, m interface{}) error {
@@ -333,6 +405,7 @@ func resourceConsumerRead(d *schema.ResourceData, m interface{}) error {
 	d.Set("flow_control", cons.FlowControl())
 	d.Set("max_waiting", cons.MaxWaiting())
 	d.Set("delivery_group", cons.DeliverGroup())
+	d.Set("headers_only", cons.IsHeadersOnly())
 
 	switch cons.DeliverPolicy() {
 	case api.DeliverAll:
