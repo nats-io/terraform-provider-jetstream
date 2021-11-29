@@ -11,6 +11,9 @@ For background information please review the [Technical Preview](https://github.
 provider "jetstream" {
   servers     = "connect.ngs.global:4222"
   credentials = "/home/you/ngs_stream_admin.creds"
+  tls = {
+    ca_file_data = "<Root CA PEM data>"
+  }
 }
 
 resource "jetstream_stream" "ORDERS" {
@@ -34,6 +37,8 @@ resource "jetstream_consumer" "ORDERS_NEW" {
  * `servers` - The list of servers to connect to in a comma seperated list
  * `credentials` - (optional) Fully Qualified Path to a file holding NATS credentials.
  * `credential_data` - (optional) The NATS credentials as a string, intended to use with data providers.
+ * `tls.ca_file` - (optional) Fully Qualified Path to a file containing Root CA (PEM format). Use when the server has certs signed by an unknown authority.
+ * `tls.ca_file_data` - (optional) The Root CA PEM as a string, intended to use with data providers. Use when the server has certs signed by an unknown authority.
 
 ## Resources
 

@@ -32,6 +32,25 @@ func Provider() terraform.ResourceProvider {
 				Optional:    true,
 				Description: "The contents of the NATS 2.0 Credentials file to use",
 			},
+			"tls": {
+				Type:     schema.TypeSet,
+				MaxItems: 1,
+				Optional: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"ca_file": {
+							Type:        schema.TypeString,
+							Optional:    true,
+							Description: "Path to the server root CA file (in PEM format). Needed when the NATS server has TLS enabled with an unknown root CA",
+						},
+						"ca_file_data": {
+							Type:        schema.TypeString,
+							Optional:    true,
+							Description: "The root CA (file) content, in PEM format. Needed when the NATS server has TLS enabled with an unknown root CA",
+						},
+					},
+				},
+			},
 		},
 
 		ResourcesMap: map[string]*schema.Resource{
