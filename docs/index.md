@@ -11,7 +11,7 @@ For background information please review the [Technical Preview](https://github.
 provider "jetstream" {
   servers     = "connect.ngs.global:4222"
   credentials = "/home/you/ngs_stream_admin.creds"
-  tls = {
+  tls {
     ca_file_data = "<Root CA PEM data>"
   }
 }
