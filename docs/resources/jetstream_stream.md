@@ -2,7 +2,7 @@
 
 The `jetstream_stream` Resource creates a JetStream Stream, supports editing resources in place.
 
-## Example Usagew
+## Example Usage
 
 ```hcl
 resource "jetstream_stream" "ORDERS" {
