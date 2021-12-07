@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
@@ -13,6 +14,10 @@ import (
 	"github.com/nats-io/nats.go"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+)
+
+var (
+	connectMu sync.Mutex
 )
 
 func parseStreamKVID(id string) (string, error) {
@@ -233,88 +238,111 @@ func wipeSlice(buf []byte) {
 	}
 }
 
-func connectMgr(d *schema.ResourceData) (interface{}, error) {
-	return func() (*nats.Conn, *jsm.Manager, error) {
-		var (
-			creds      string
-			credData   []byte
-			servers    string
-			user       string
-			pass       string
-			nkey       string
-			caFile     string
-			cleanupPem = func() {}
-		)
+type connectProperties struct {
+	creds      string
+	credData   []byte
+	servers    string
+	user       string
+	pass       string
+	nkey       string
+	caFile     string
+	cleanupPem func()
+}
 
-		s := d.Get("credentials")
-		if s != nil {
-			creds = s.(string)
-		}
+func getConnectProperties(d *schema.ResourceData) (*connectProperties, error) {
+	connectMu.Lock()
+	defer connectMu.Unlock()
 
-		s = d.Get("credential_data")
-		if s != nil {
-			credData = []byte(s.(string))
-		}
+	p := connectProperties{
+		creds:      "",
+		credData:   nil,
+		servers:    "",
+		user:       "",
+		pass:       "",
+		nkey:       "",
+		caFile:     "",
+		cleanupPem: nil,
+	}
 
-		s = d.Get("servers")
-		if s != nil {
-			servers = s.(string)
-		}
+	s := d.Get("credentials")
+	if s != nil {
+		p.creds = s.(string)
+	}
 
-		s = d.Get("user")
-		if s != nil {
-			user = s.(string)
-		}
+	s = d.Get("credential_data")
+	if s != nil {
+		p.credData = []byte(s.(string))
+	}
 
-		s = d.Get("password")
-		if s != nil {
-			pass = s.(string)
-		}
+	s = d.Get("servers")
+	if s != nil {
+		p.servers = s.(string)
+	}
 
-		s = d.Get("nkey")
-		if s != nil {
-			nkey = s.(string)
-		}
+	s = d.Get("user")
+	if s != nil {
+		p.user = s.(string)
+	}
 
-		s = d.Get("tls")
-		if s != nil {
-			set := s.(*schema.Set)
+	s = d.Get("password")
+	if s != nil {
+		p.pass = s.(string)
+	}
 
-			for _, v := range set.List() {
-				m := v.(map[string]interface{})
+	s = d.Get("nkey")
+	if s != nil {
+		p.nkey = s.(string)
+	}
 
-				for k, v := range m {
-					switch {
-					case k == "ca_file" && len(v.(string)) > 0:
-						caFile = v.(string)
-					case k == "ca_file_data" && len(v.(string)) > 0:
-						file, cleanup, err := newTempPEMFile(v.(string))
-						if err != nil {
-							return nil, nil, err
-						}
+	s = d.Get("tls")
+	if s != nil {
+		set := s.(*schema.Set)
 
-						cleanupPem = cleanup
-						caFile = file
+		for _, v := range set.List() {
+			m := v.(map[string]interface{})
+
+			for k, v := range m {
+				switch {
+				case k == "ca_file" && len(v.(string)) > 0:
+					p.caFile = v.(string)
+				case k == "ca_file_data" && len(v.(string)) > 0:
+					file, cleanup, err := newTempPEMFile(v.(string))
+					if err != nil {
+						return nil, err
 					}
+
+					p.cleanupPem = cleanup
+					p.caFile = file
 				}
 			}
+		}
+	}
+
+	return &p, nil
+}
+
+func connectMgr(d *schema.ResourceData) (interface{}, error) {
+	return func() (*nats.Conn, *jsm.Manager, error) {
+		props, err := getConnectProperties(d)
+		if err != nil {
+			return nil, nil, err
 		}
 
 		var opts []nats.Option
 
 		switch {
-		case creds != "":
-			opts = append(opts, nats.UserCredentials(creds))
+		case props.creds != "":
+			opts = append(opts, nats.UserCredentials(props.creds))
 
-		case len(credData) > 0:
-			defer wipeSlice(credData)
+		case len(props.credData) > 0:
+			defer wipeSlice(props.credData)
 
 			userCB := func() (string, error) {
-				return jwt.ParseDecoratedJWT(credData)
+				return jwt.ParseDecoratedJWT(props.credData)
 			}
 
 			sigCB := func(nonce []byte) ([]byte, error) {
-				kp, err := jwt.ParseDecoratedNKey(credData)
+				kp, err := jwt.ParseDecoratedNKey(props.credData)
 				if err != nil {
 					return nil, err
 				}
@@ -327,12 +355,12 @@ func connectMgr(d *schema.ResourceData) (interface{}, error) {
 		}
 
 		switch {
-		case user != "" && pass == "":
-			opts = append(opts, nats.UserInfo(user, pass))
-		case user != "":
-			opts = append(opts, nats.Token(user))
-		case nkey != "":
-			nko, err := nats.NkeyOptionFromSeed(nkey)
+		case props.user != "" && props.pass == "":
+			opts = append(opts, nats.UserInfo(props.user, props.pass))
+		case props.user != "":
+			opts = append(opts, nats.Token(props.user))
+		case props.nkey != "":
+			nko, err := nats.NkeyOptionFromSeed(props.nkey)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -340,12 +368,15 @@ func connectMgr(d *schema.ResourceData) (interface{}, error) {
 			opts = append(opts, nko)
 		}
 
-		if len(caFile) > 0 {
-			defer cleanupPem()
-			opts = append(opts, nats.RootCAs(caFile))
+		if len(props.caFile) > 0 {
+			if props.cleanupPem != nil {
+				defer props.cleanupPem()
+			}
+
+			opts = append(opts, nats.RootCAs(props.caFile))
 		}
 
-		nc, err := nats.Connect(servers, opts...)
+		nc, err := nats.Connect(props.servers, opts...)
 		if err != nil {
 			return nil, nil, err
 		}
