@@ -355,7 +355,7 @@ func connectMgr(d *schema.ResourceData) (interface{}, error) {
 		}
 
 		switch {
-		case props.user != "" && props.pass == "":
+		case props.user != "" && props.pass != "":
 			opts = append(opts, nats.UserInfo(props.user, props.pass))
 		case props.user != "":
 			opts = append(opts, nats.Token(props.user))
