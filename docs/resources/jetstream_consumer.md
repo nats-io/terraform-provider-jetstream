@@ -42,3 +42,5 @@ resource "jetstream_consumer" "ORDERS_NEW" {
  * `flow_control` - (optional) Enable flow control for push consumers
  * `max_waiting` - (optional) The number of pulls that can be outstanding on a pull consumer, pulls received after this is reached are ignored
  * `headers_only` - (optional) When true no message bodies will be delivered only headers
+ * `max_batch` - (optional) Limits Pull Batch sizes to this maximum
+ * `max_expires` - (optional) Limits the Pull Expires duration to this maximum in seconds
