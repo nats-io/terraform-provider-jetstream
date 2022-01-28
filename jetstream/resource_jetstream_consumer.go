@@ -189,24 +189,40 @@ func resourceConsumer() *schema.Resource {
 				Default:     false,
 				ForceNew:    false,
 			},
+			"max_batch": {
+				Type:        schema.TypeInt,
+				Description: "Limits Pull Batch sizes to this maximum",
+				Optional:    true,
+				Default:     0,
+				ForceNew:    false,
+			},
+			"max_expires": {
+				Type:        schema.TypeInt,
+				Description: "Limits the Pull Expires duration to this maximum in seconds",
+				Optional:    true,
+				Default:     "",
+				ForceNew:    false,
+			},
 		},
 	}
 }
 
 func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerConfig, err error) {
 	cfg = api.ConsumerConfig{
-		Durable:         d.Get("durable_name").(string),
-		AckWait:         time.Duration(d.Get("ack_wait").(int)) * time.Second,
-		MaxDeliver:      d.Get("max_delivery").(int),
-		FilterSubject:   d.Get("filter_subject").(string),
-		SampleFrequency: fmt.Sprintf("%d%%", d.Get("sample_freq").(int)),
-		DeliverSubject:  d.Get("delivery_subject").(string),
-		DeliverPolicy:   api.DeliverAll,
-		RateLimit:       uint64(d.Get("ratelimit").(int)),
-		MaxAckPending:   d.Get("max_ack_pending").(int),
-		FlowControl:     d.Get("flow_control").(bool),
-		Heartbeat:       time.Duration(d.Get("heartbeat").(int)) * time.Second,
-		HeadersOnly:     d.Get("headers_only").(bool),
+		Durable:           d.Get("durable_name").(string),
+		AckWait:           time.Duration(d.Get("ack_wait").(int)) * time.Second,
+		MaxDeliver:        d.Get("max_delivery").(int),
+		FilterSubject:     d.Get("filter_subject").(string),
+		SampleFrequency:   fmt.Sprintf("%d%%", d.Get("sample_freq").(int)),
+		DeliverSubject:    d.Get("delivery_subject").(string),
+		DeliverPolicy:     api.DeliverAll,
+		RateLimit:         uint64(d.Get("ratelimit").(int)),
+		MaxAckPending:     d.Get("max_ack_pending").(int),
+		FlowControl:       d.Get("flow_control").(bool),
+		Heartbeat:         time.Duration(d.Get("heartbeat").(int)) * time.Second,
+		HeadersOnly:       d.Get("headers_only").(bool),
+		MaxRequestBatch:   d.Get("max_batch").(int),
+		MaxRequestExpires: time.Duration(d.Get("max_expires").(int)) * time.Second,
 	}
 
 	if description, ok := d.GetOk("description"); ok {
@@ -314,6 +330,8 @@ func resourceConsumerUpdate(d *schema.ResourceData, m interface{}) error {
 		jsm.SamplePercent(freq),
 		jsm.MaxAckPending(uint(cfg.MaxAckPending)),
 		jsm.MaxWaiting(uint(cfg.MaxWaiting)),
+		jsm.MaxRequestExpires(cfg.MaxRequestExpires),
+		jsm.MaxRequestBatch(uint(cfg.MaxRequestBatch)),
 	}
 
 	if cfg.HeadersOnly {
@@ -406,6 +424,8 @@ func resourceConsumerRead(d *schema.ResourceData, m interface{}) error {
 	d.Set("max_waiting", cons.MaxWaiting())
 	d.Set("delivery_group", cons.DeliverGroup())
 	d.Set("headers_only", cons.IsHeadersOnly())
+	d.Set("max_batch", cons.MaxRequestBatch())
+	d.Set("max_expires", cons.MaxRequestExpires().Seconds())
 
 	switch cons.DeliverPolicy() {
 	case api.DeliverAll:
