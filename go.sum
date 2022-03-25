@@ -292,8 +292,8 @@ github.com/nats-io/jsm.go v0.0.31-0.20220318094353-016d9b02a83f/go.mod h1:F6Q6gb
 github.com/nats-io/jwt v1.2.2 h1:w3GMTO969dFg+UOKTmmyuu7IGdusK+7Ytlt//OYH/uU=
 github.com/nats-io/jwt v1.2.2/go.mod h1:/xX356yQA6LuXI9xWW7mZNpxgF2mBmGecH+Fj34sP5Q=
 github.com/nats-io/jwt/v2 v2.2.1-0.20220113022732-58e87895b296/go.mod h1:0tqz9Hlu6bCBFLWAASKhE5vUA4c24L9KPUUgvwumE/k=
-github.com/nats-io/jwt/v2 v2.2.1-0.20220216230343-0ebff70bb096 h1:/NsiAJ3QwYAJ1GcE46MZKdn924z1ki5JmLIOLIG7cMw=
-github.com/nats-io/jwt/v2 v2.2.1-0.20220216230343-0ebff70bb096/go.mod h1:3dd7YxgBieCh8qT6R3lOGvKezVaDVtZ/YB6OTcLxu+Y=
+github.com/nats-io/jwt/v2 v2.2.1-0.20220323195037-3472a33220ba h1:NZi4+xOauRDb4znbGDeJqdS1Gh448BaQ3NS9F1UnwN0=
+github.com/nats-io/jwt/v2 v2.2.1-0.20220323195037-3472a33220ba/go.mod h1:0tqz9Hlu6bCBFLWAASKhE5vUA4c24L9KPUUgvwumE/k=
 github.com/nats-io/nats-server/v2 v2.7.5-0.20220318022501-29ff67e2ac34/go.mod h1:1vZ2Nijh8tcyNe8BDVyTviCd9NYzRbubQYiEHsvOQWc=
 github.com/nats-io/nats-server/v2 v2.7.5-0.20220325021231-edcddfae587d h1:Kp1dZROv9OwTDN1D37bciiDE5d+uoZkrC1G2i0ISsv4=
 github.com/nats-io/nats-server/v2 v2.7.5-0.20220325021231-edcddfae587d/go.mod h1:sDwnP1n3HGJ/wH81BPbhbRWqiEiyvNfEg9GD0nr+meQ=
