@@ -37,6 +37,7 @@ Above the `ORDERS_ARCHIVE` stream is a mirror of `ORDERS`, valid options for spe
 
 ## Attribute Reference
 
+ * `description` - (optional) Contains additional information about this stream (string)
  * `ack` - (optional) If the Stream should support confirming receiving messages via acknowledgements (bool)
  * `max_age` - (optional) The maximum oldest message that can be kept in the stream, duration specified in seconds (number)
  * `max_bytes` - (optional) The maximum size of all messages that can be kept in the stream (number)
