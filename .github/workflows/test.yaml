@@ -1,0 +1,40 @@
+name: Terraform Provider Testing
+on: [push, pull_request]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        go: [ 1.17, 1.18 ]
+
+    env:
+      GOPATH: /home/runner/work/terraform-provider-jetstream
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v1
+
+      - name: Setup Go
+        uses: actions/setup-go@v1
+        with:
+          go-version: ${{matrix.go}}
+
+      - name: Lint
+        shell: bash
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@master
+          go install github.com/client9/misspell/cmd/misspell@latest
+
+          PATH=$PATH:$GOPATH/bin
+          GO_LIST=$(go list ./...)
+          $(exit $(go fmt $GO_LIST | wc -l))
+          go vet -composites=false $GO_LIST
+          find . -type f -name "*.go" | xargs misspell -error -locale US
+          staticcheck -f stylish $GO_LIST
+
+      - name: Run tests
+        shell: bash
+        run: |
+          set -e
+          TF_ACC=1 go test -v --failfast -p=1 ./...

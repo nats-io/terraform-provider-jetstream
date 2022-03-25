@@ -1,6 +1,6 @@
 language: go
 go:
-  - 1.16.x
+  - 1.17.x
 install:
   - go get -u honnef.co/go/tools/cmd/staticcheck
   - go get -u github.com/client9/misspell/cmd/misspell
