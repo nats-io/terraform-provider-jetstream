@@ -120,6 +120,7 @@ resource "jetstream_stream" "ORDERS" {
 
 ### Attribute Reference
 
+ * `description` - (optional) Contains additional information about this stream (string)
  * `ack` - (optional) If the Stream should support confirming receiving messages via acknowledgements (bool)
  * `max_age` - (optional) The maximum oldest message that can be kept in the stream, duration specified in seconds (number)
  * `max_bytes` - (optional) The maximum size of all messages that can be kept in the stream (number)
@@ -132,38 +133,13 @@ resource "jetstream_stream" "ORDERS" {
  * `retention` - (optional) The retention policy to apply over and above max_msgs, max_bytes and max_age (string)
  * `storage` - (optional) The storage engine to use to back the stream (string)
  * `subjects` - The list of subjects that will be consumed by the Stream (["list", "string"])
-
-## jetstream_stream_template
-
-Creates a JetStream Stream Template. Does not support editing in place, when a template gets deleted all it's managed Streams also get deleted
-
-### Example
-
-```terraform
-resource "jetstream_stream_template" "ONE_HOUR" {
-  name        = "JS_1H"
-  subjects    = ["JS.1H.*"]
-  storage     = "file"
-  max_age     = 60 * 60
-  max_streams = 60
-}
-```
-
-### Attribute Reference
-
- * `ack` - (optional) If the Stream should support confirming receiving messages via acknowledgements (bool)
- * `max_age` - (optional) The maximum oldest message that can be kept in the stream, duration specified in seconds (number)
- * `max_bytes` - (optional) The maximum size of all messages that can be kept in the stream (number)
- * `max_consumers` - (optional) Number of consumers this stream allows (number)
- * `max_msg_size` - (optional) The maximum individual message size that the stream will accept (number)
- * `max_msgs` - (optional) The maximum amount of messages that can be kept in the stream (number)
- * `max_streams` - Maximum number of Streams this Template can manage (number)
- * `name` - The name of the Stream Template (string)
- * `replicas` - (optional) How many replicas of the data to keep in a clustered environment (number)
- * `retention` - (optional) The retention policy to apply over and above max_msgs, max_bytes and max_age (string)
- * `storage` - (optional) The storage engine to use to back the stream (string)
- * `subjects` - The list of subjects that will be consumed by the Stream (["list", "string"])
-
+ * `duplicate_window` - (optional) The time window size for duplicate tracking, duration specified in seconds (number)
+ * `replicas` - (optional) How many replicas of the data to keep in a clustered environment
+ * `placement_cluster` - (optional) Place the stream in a specific cluster, influenced by placement_tags
+ * `placement_tags` - (optional) Place the stream only on servers with these tags
+ * `source` - (optional) List of streams to source
+ * `mirror` - (optional) Stream to mirror
+ 
 ## jetstream_consumer
 
 Create or Delete Consumers on any Terraform managed Stream. Does not support editing consumers in place
@@ -189,6 +165,7 @@ resource "jetstream_consumer" "ORDERS_NEW" {
 
 ### Attribute Reference
 
+ * `description` - (optional) Contains additional information about this consumer
  * `ack_policy` - (optional) The delivery acknowledgement policy to apply to the Consumer
  * `ack_wait` - (optional) Number of seconds to wait for acknowledgement
  * `deliver_all` - (optional) Starts at the first available message in the Stream
@@ -204,7 +181,12 @@ resource "jetstream_consumer" "ORDERS_NEW" {
  * `stream_id` - The name of the Stream that this consumer consumes
  * `stream_sequence` - (optional) The Stream Sequence that will be the first message delivered by this Consumer
  * `ratelimit` - (optional) The rate limit for delivering messages to push consumers, expressed in bits per second
+ * `heartbeat` - (optional) Enable heartbeat messages for push consumers, duration specified in seconds
+ * `flow_control` - (optional) Enable flow control for push consumers
+ * `max_waiting` - (optional) The number of pulls that can be outstanding on a pull consumer, pulls received after this is reached are ignored
  * `headers_only` - (optional) When true no message bodies will be delivered only headers
+ * `max_batch` - (optional) Limits Pull Batch sizes to this maximum
+ * `max_expires` - (optional) Limits the Pull Expires duration to this maximum in seconds
 
 ## jetstream_kv_bucket
 
@@ -225,9 +207,11 @@ resource "jetstream_kv_bucket" "test" {
 ### Attribute Reference
 
  * `name` - (required) The unique name of the KV bucket, must match `\A[a-zA-Z0-9_-]+\z`
+ * `description` - (optional) Contains additional information about this bucket 
  * `history` - (optional) Number of historic values to keep
  * `ttl` - (optional) How many seconds to keep values for, keeps forever when not set
- * `placement` - (optional) JetStream cluster name to place the KV bucket in
+ * `placement_cluster` - (optional) Place the bucket in a specific cluster, influenced by placement_tags
+ * `placement_tags` - (optional) Place the bucket only on servers with these tags
  * `max_value_size` - (optional) Maximum size of any value
  * `max_bucket_size` - (optional) The maximum size of all data in the bucket
  * `replicas` - (optional) How many replicas to keep on a JetStream cluster

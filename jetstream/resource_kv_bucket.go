@@ -27,6 +27,12 @@ func resourceKVBucket() *schema.Resource {
 				Required:    true,
 				ForceNew:    true,
 			},
+			"description": {
+				Type:        schema.TypeString,
+				Description: "Contains additional information about this bucket",
+				Optional:    true,
+				ForceNew:    false,
+			},
 			"history": {
 				Type:         schema.TypeInt,
 				Description:  "How many historical values to keep",
@@ -59,6 +65,20 @@ func resourceKVBucket() *schema.Resource {
 				ForceNew:     false,
 				ValidateFunc: validation.IntAtLeast(-1),
 			},
+			"placement_cluster": {
+				Type:        schema.TypeString,
+				Description: "Place the bucket in a specific cluster, influenced by placement_tags",
+				Default:     "",
+				Optional:    true,
+			},
+			"placement_tags": {
+				Type:        schema.TypeList,
+				Description: "Place the stream only on servers with these tags",
+				Optional:    true,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+			},
 			"replicas": {
 				Type:         schema.TypeInt,
 				Description:  "Number of cluster replicas to store",
@@ -84,6 +104,22 @@ func resourceKVBucketCreate(d *schema.ResourceData, m interface{}) error {
 	maxV := d.Get("max_value_size").(int)
 	maxB := d.Get("max_bucket_size").(int)
 	replicas := d.Get("replicas").(int)
+	descrption := d.Get("description").(string)
+
+	var placement *nats.Placement
+	c, ok := d.GetOk("placement_cluster")
+	if ok {
+		placement = &nats.Placement{Cluster: c.(string)}
+		pt, ok := d.GetOk("placement_tags")
+		if ok {
+			ts := pt.([]interface{})
+			var tags = make([]string, len(ts))
+			for i, tag := range ts {
+				tags[i] = tag.(string)
+			}
+			placement.Tags = tags
+		}
+	}
 
 	known, err := mgr.IsKnownStream("KV_" + name)
 	if err != nil {
@@ -100,12 +136,14 @@ func resourceKVBucketCreate(d *schema.ResourceData, m interface{}) error {
 
 	_, err = js.CreateKeyValue(&nats.KeyValueConfig{
 		Bucket:       name,
+		Description:  descrption,
 		MaxValueSize: int32(maxV),
 		History:      uint8(history),
 		TTL:          time.Duration(ttl) * time.Second,
 		MaxBytes:     int64(maxB),
 		Storage:      nats.FileStorage,
 		Replicas:     replicas,
+		Placement:    placement,
 	})
 	if err != nil {
 		return err
@@ -146,9 +184,17 @@ func resourceKVBucketRead(d *schema.ResourceData, m interface{}) error {
 	d.Set("ttl", status.TTL().Seconds())
 
 	jStatus := status.(*nats.KeyValueBucketStatus)
-	d.Set("max_value_size", jStatus.StreamInfo().Config.MaxMsgSize)
-	d.Set("max_bucket_size", jStatus.StreamInfo().Config.MaxBytes)
-	d.Set("replicas", jStatus.StreamInfo().Config.Replicas)
+	si := jStatus.StreamInfo()
+
+	d.Set("max_value_size", si.Config.MaxMsgSize)
+	d.Set("max_bucket_size", si.Config.MaxBytes)
+	d.Set("replicas", si.Config.Replicas)
+	d.Set("description", si.Config.Description)
+
+	if si.Config.Placement != nil {
+		d.Set("placement_cluster", si.Config.Placement.Cluster)
+		d.Set("placement_tags", si.Config.Placement.Tags)
+	}
 
 	return nil
 }
@@ -185,12 +231,14 @@ func resourceKVBucketUpdate(d *schema.ResourceData, m interface{}) error {
 	ttl := d.Get("ttl").(int)
 	maxV := d.Get("max_value_size").(int)
 	maxB := d.Get("max_bucket_size").(int)
+	description := d.Get("description").(string)
 
 	cfg := str.Configuration()
 	cfg.MaxAge = time.Duration(ttl) * time.Second
 	cfg.MaxMsgSize = int32(maxV)
 	cfg.MaxBytes = int64(maxB)
 	cfg.MaxMsgsPer = int64(history)
+	cfg.Description = description
 
 	err = str.UpdateConfiguration(cfg)
 	if err != nil {

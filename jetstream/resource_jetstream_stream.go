@@ -76,7 +76,7 @@ func resourceStream() *schema.Resource {
 			},
 			"description": {
 				Type:        schema.TypeString,
-				Description: "Contains additional information about this consumer",
+				Description: "Contains additional information about this stream",
 				Optional:    true,
 				ForceNew:    false,
 			},
@@ -277,6 +277,11 @@ func resourceStreamRead(d *schema.ResourceData, m interface{}) error {
 		d.Set("retention", "interest")
 	case api.WorkQueuePolicy:
 		d.Set("retention", "workqueue")
+	}
+
+	if str.Configuration().Placement != nil {
+		d.Set("placement_cluster", str.Configuration().Placement.Cluster)
+		d.Set("placement_tags", str.Configuration().Placement.Tags)
 	}
 
 	if str.IsMirror() {
