@@ -68,7 +68,7 @@ require (
 	github.com/mitchellh/go-wordwrap v1.0.0 // indirect
 	github.com/mitchellh/mapstructure v1.1.2 // indirect
 	github.com/mitchellh/reflectwalk v1.0.1 // indirect
-	github.com/nats-io/jwt/v2 v2.2.1-0.20220216230343-0ebff70bb096 // indirect
+	github.com/nats-io/jwt/v2 v2.2.1-0.20220323195037-3472a33220ba // indirect
 	github.com/nats-io/nkeys v0.3.1-0.20220214171627-79ae42e4d898 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/oklog/run v1.0.0 // indirect
