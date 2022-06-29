@@ -47,7 +47,6 @@ resource "jetstream_stream" "test" {
 	name = "TEST"
 	mirror {
 		name = "OTHER"
-		filter_subject = "FILTER"
 		start_seq = 11
 		external {
 			api = "js.api.ext"
@@ -128,7 +127,6 @@ func TestResourceStream(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					testStreamExist(t, mgr, "TEST"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.name", "OTHER"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.filter_subject", "FILTER"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.start_seq", "11"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.external.0.api", "js.api.ext"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.external.0.deliver", "js.deliver.ext"),

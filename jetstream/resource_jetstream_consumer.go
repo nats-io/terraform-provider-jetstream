@@ -126,7 +126,7 @@ func resourceConsumer() *schema.Resource {
 				Description: "Only receive a subset of messages from the Stream based on the subject they entered the Stream on",
 				Default:     "",
 				Optional:    true,
-				ForceNew:    true,
+				ForceNew:    false,
 			},
 			"replay_policy": {
 				Type:         schema.TypeString,

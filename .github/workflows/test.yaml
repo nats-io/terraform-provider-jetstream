@@ -23,7 +23,7 @@ jobs:
       - name: Lint
         shell: bash
         run: |
-          go install honnef.co/go/tools/cmd/staticcheck@master
+          go install honnef.co/go/tools/cmd/staticcheck@2022.1
           go install github.com/client9/misspell/cmd/misspell@latest
 
           PATH=$PATH:$GOPATH/bin

@@ -253,7 +253,6 @@ func resourceStreamRead(d *schema.ResourceData, m interface{}) error {
 	d.Set("max_msgs", int(str.MaxMsgs()))
 	d.Set("max_msgs_per_subject", int(str.MaxMsgsPerSubject()))
 	d.Set("max_age", str.MaxAge().Seconds())
-	d.Set("duplicate_window", str.DuplicateWindow().Seconds())
 	d.Set("max_bytes", str.MaxBytes())
 	d.Set("max_msg_size", int(str.MaxMsgSize()))
 	d.Set("replicas", str.Replicas())
@@ -296,6 +295,8 @@ func resourceStreamRead(d *schema.ResourceData, m interface{}) error {
 			d.Set("mirror.0.external.api", mirror.External.ApiPrefix)
 			d.Set("mirror.0.external.deliver", mirror.External.DeliverPrefix)
 		}
+	} else {
+		d.Set("duplicate_window", str.DuplicateWindow().Seconds())
 	}
 
 	if str.IsSourced() {
