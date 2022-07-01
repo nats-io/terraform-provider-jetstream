@@ -4,10 +4,13 @@ before:
 builds:
   - env:
       - CGO_ENABLED=0
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    flags:
+      - -trimpath
+    ldflags:
+      - '-s -w -X main.version={{.Version}} -X main.commit={{.Commit}}'
     goos:
       - freebsd
-      - openbsd
-      - solaris
       - windows
       - linux
       - darwin
@@ -19,21 +22,7 @@ builds:
     ignore:
       - goos: darwin
         goarch: '386'
-      - goos: darwin
-        goarch: arm
-      - goos: darwin
-        goarch: arm64
-      - goos: openbsd
-        goarch: arm
-      - goos: openbsd
-        goarch: arm64
-      - goos: solaris
-        goarch: arm
-      - goos: solaris
-        goarch: arm64
-      - goos: solaris
-        goarch: '386'
-    binary: '{{ .ProjectName }}_{{ .Version }}'
+    binary: '{{ .ProjectName }}_v{{ .Version }}'
 archives:
   - format: zip
     name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
@@ -43,6 +32,9 @@ checksum:
 signs:
   - artifacts: checksum
     args:
+      - "--batch"
+      - "--local-user"
+      - "{{ .Env.GPG_FINGERPRINT }}" # set this environment variable for your signing key
       - "--output"
       - "${signature}"
       - "--detach-sign"
