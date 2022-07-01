@@ -201,8 +201,6 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		if len(stream.Sources) > 0 {
 			return api.StreamConfig{}, fmt.Errorf("only one of sources and mirror may be specified")
 		}
-
-		stream.Duplicates = 0
 	}
 
 	if len(stream.Subjects) == 0 && stream.Mirror == nil && len(stream.Sources) == 0 {
