@@ -6,7 +6,7 @@ require (
 	github.com/google/go-cmp v0.5.8
 	github.com/hashicorp/terraform-plugin-sdk v1.17.2
 	github.com/nats-io/jsm.go v0.0.34-0.20220701104412-8617c15ee4fb
-	github.com/nats-io/jwt v1.2.2
+	github.com/nats-io/jwt/v2 v2.3.0
 	github.com/nats-io/nats-server/v2 v2.8.5-0.20220630223440-b7d94e1b5211
 	github.com/nats-io/nats.go v1.16.0
 	github.com/xeipuuv/gojsonschema v1.2.0
@@ -36,7 +36,7 @@ require (
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-checkpoint v0.5.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
-	github.com/hashicorp/go-getter v1.5.3 // indirect
+	github.com/hashicorp/go-getter v1.6.2 // indirect
 	github.com/hashicorp/go-hclog v0.9.2 // indirect
 	github.com/hashicorp/go-multierror v1.0.0 // indirect
 	github.com/hashicorp/go-plugin v1.3.0 // indirect
@@ -68,7 +68,6 @@ require (
 	github.com/mitchellh/go-wordwrap v1.0.0 // indirect
 	github.com/mitchellh/mapstructure v1.1.2 // indirect
 	github.com/mitchellh/reflectwalk v1.0.1 // indirect
-	github.com/nats-io/jwt/v2 v2.3.0 // indirect
 	github.com/nats-io/nkeys v0.3.1-0.20220214171627-79ae42e4d898 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/oklog/run v1.0.0 // indirect
