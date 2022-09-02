@@ -1,7 +1,7 @@
 # NATS JetStream Provider
 
 The JetStream Provider manages [NATS](https://nats.io) JetStream that enables persistence and Stream
-Processing for the NATS eco system. 
+Processing for the NATS eco system.
 
 For background information please review the [Technical Preview](https://github.com/nats-io/jetstream#readme) notes.
 
@@ -47,4 +47,4 @@ resource "jetstream_consumer" "ORDERS_NEW" {
 
  * `jetstream_stream` - Manage a Stream that persistently stores messages
  * `jetstream_consumer` - Creates a Consumer that defines how Stream messages can be consumed by clients
- * `jetstream_stream_template` - Create a Stream Template that automatically generates Streams for incoming messages 
+ * `jetstream_kv_bucket` - Creates a Key-Value store

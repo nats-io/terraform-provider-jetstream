@@ -9,7 +9,6 @@ import (
 
 var streamIdRegex = regexp.MustCompile("^JETSTREAM_STREAM_(.+)$")
 var consumerIdRegex = regexp.MustCompile("^JETSTREAM_STREAM_(.+?)_CONSUMER_(.+)$")
-var streamTemplateIdRegex = regexp.MustCompile("^JETSTREAM_STREAMTEMPLATE_(.+)$")
 var kvIdRegex = regexp.MustCompile("^JETSTREAM_KV_(.+)$")
 
 func Provider() terraform.ResourceProvider {
@@ -71,10 +70,9 @@ func Provider() terraform.ResourceProvider {
 		},
 
 		ResourcesMap: map[string]*schema.Resource{
-			"jetstream_stream":          resourceStream(),
-			"jetstream_consumer":        resourceConsumer(),
-			"jetstream_stream_template": resourceStreamTemplate(),
-			"jetstream_kv_bucket":       resourceKVBucket(),
+			"jetstream_stream":    resourceStream(),
+			"jetstream_consumer":  resourceConsumer(),
+			"jetstream_kv_bucket": resourceKVBucket(),
 		},
 
 		ConfigureFunc: connectMgr,

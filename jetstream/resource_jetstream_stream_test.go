@@ -112,6 +112,7 @@ func TestResourceStream(t *testing.T) {
 					testStreamHasSubjects(t, mgr, "TEST", []string{"TEST.*"}),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "max_msgs", "-1"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "description", "testing stream"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "deny_delete", "false"),
 				),
 			},
 			{

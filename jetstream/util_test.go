@@ -90,32 +90,6 @@ func testStreamExist(t *testing.T, mgr *jsm.Manager, stream string) resource.Tes
 	}
 }
 
-func testStreamTemplateExist(t *testing.T, mgr *jsm.Manager, template string) resource.TestCheckFunc {
-	return func(s *terraform.State) error {
-		known, err := mgr.IsKnownStreamTemplate(template)
-		if err != nil {
-			return err
-		}
-
-		if !known {
-			return fmt.Errorf("stream template %q does not exist", template)
-		}
-
-		return nil
-	}
-}
-
-func testStreamTemplateDoesNotExist(t *testing.T, mgr *jsm.Manager, template string) resource.TestCheckFunc {
-	return func(s *terraform.State) error {
-		err := testStreamTemplateExist(t, mgr, template)
-		if err == nil {
-			return fmt.Errorf("expected stream template %q to not exist", template)
-		}
-
-		return nil
-	}
-}
-
 func testStreamDoesNotExist(t *testing.T, mgr *jsm.Manager, stream string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		err := testStreamExist(t, mgr, stream)
