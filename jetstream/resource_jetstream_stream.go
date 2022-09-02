@@ -176,7 +176,7 @@ func resourceStream() *schema.Resource {
 				Type:        schema.TypeList,
 				Description: "Specifies a remote stream to mirror into this one",
 				MaxItems:    1,
-				ForceNew:    false,
+				ForceNew:    true,
 				Required:    false,
 				Optional:    true,
 				Elem:        &schema.Resource{Schema: sourceInfo},
