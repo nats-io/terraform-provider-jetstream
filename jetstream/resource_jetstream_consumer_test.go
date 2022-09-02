@@ -20,10 +20,13 @@ resource "jetstream_stream" "test" {
 }
 
 resource "jetstream_consumer" "TEST_C1" {
-  stream_id      = jetstream_stream.test.id
-  description    = "testing consumer"
-  durable_name   = "C1"
-  deliver_all    = true
+  stream_id          = jetstream_stream.test.id
+  description        = "testing consumer"
+  durable_name       = "C1"
+  deliver_all        = true
+  inactive_threshold = 60
+  max_delivery       = 10
+  backoff            = [30, 60]
 }
 `
 
@@ -71,6 +74,7 @@ func TestResourceConsumer(t *testing.T) {
 					testConsumerExist(t, mgr, "TEST", "C1"),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C1", "stream_sequence", "0"),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C1", "description", "testing consumer"),
+					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C1", "inactive_threshold", "60"),
 				),
 			},
 			{
@@ -80,6 +84,7 @@ func TestResourceConsumer(t *testing.T) {
 					testConsumerExist(t, mgr, "TEST", "C2"),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C2", "stream_sequence", "10"),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C2", "max_ack_pending", "20"),
+					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C2", "inactive_threshold", "0"),
 				),
 			},
 		},
