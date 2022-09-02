@@ -203,6 +203,35 @@ func resourceConsumer() *schema.Resource {
 				Default:     "",
 				ForceNew:    false,
 			},
+			"inactive_threshold": {
+				Type:        schema.TypeInt,
+				Description: "Removes the consumer after a idle period, specified as a duration in seconds",
+				Default:     "0",
+				Optional:    true,
+				ForceNew:    false,
+			},
+			"replicas": {
+				Type:        schema.TypeInt,
+				Description: "How many replicas of the data to keep in a clustered environment",
+				Default:     0,
+				Optional:    true,
+				ForceNew:    true,
+			},
+			"memory": {
+				Type:        schema.TypeBool,
+				Description: "Force the consumer state to be kept in memory rather than inherit the setting from the stream",
+				Default:     false,
+				Optional:    true,
+				ForceNew:    true,
+			},
+			"backoff": {
+				Type:        schema.TypeList,
+				Description: "List of durations in Go format that represents a retry time scale for NaK'd messages. A list of durations in seconds.",
+				Optional:    true,
+				Elem: &schema.Schema{
+					Type: schema.TypeInt,
+				},
+			},
 		},
 	}
 }
@@ -223,6 +252,9 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 		HeadersOnly:       d.Get("headers_only").(bool),
 		MaxRequestBatch:   d.Get("max_batch").(int),
 		MaxRequestExpires: time.Duration(d.Get("max_expires").(int)) * time.Second,
+		Replicas:          d.Get("replicas").(int),
+		MemoryStorage:     d.Get("memory").(bool),
+		InactiveThreshold: time.Duration(d.Get("inactive_threshold").(int)) * time.Second,
 	}
 
 	if description, ok := d.GetOk("description"); ok {
@@ -232,6 +264,10 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 	if cfg.DeliverSubject != "" {
 		cfg.MaxWaiting = d.Get("max_waiting").(int)
 		cfg.DeliverGroup = d.Get("delivery_group").(string)
+	}
+
+	for _, d := range d.Get("backoff").([]any) {
+		cfg.BackOff = append(cfg.BackOff, time.Duration(d.(int))*time.Second)
 	}
 
 	seq := uint64(d.Get("stream_sequence").(int))
@@ -426,6 +462,12 @@ func resourceConsumerRead(d *schema.ResourceData, m any) error {
 	d.Set("headers_only", cons.IsHeadersOnly())
 	d.Set("max_batch", cons.MaxRequestBatch())
 	d.Set("max_expires", cons.MaxRequestExpires().Seconds())
+	d.Set("replicas", cons.Replicas())
+	d.Set("memory", cons.MemoryStorage())
+
+	if cons.InactiveThreshold() != 0 {
+		d.Set("inactive_threshold", cons.InactiveThreshold().String())
+	}
 
 	switch cons.DeliverPolicy() {
 	case api.DeliverAll:
@@ -468,6 +510,12 @@ func resourceConsumerRead(d *schema.ResourceData, m any) error {
 	case api.AckNone:
 		d.Set("ack_policy", "none")
 	}
+
+	var bo []any
+	for _, d := range cons.Backoff() {
+		bo = append(bo, d.String())
+	}
+	d.Set("backoff", bo)
 
 	return nil
 }

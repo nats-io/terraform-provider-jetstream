@@ -1,6 +1,6 @@
 # jetstream_stream Resource
 
-The `jetstream_consumer` Resource creates, updates or deletes JetStream Consumers on any Terraform managed Stream. 
+The `jetstream_consumer` Resource creates, updates or deletes JetStream Consumers on any Terraform managed Stream.
 
 ## Example Usage
 
@@ -45,3 +45,7 @@ resource "jetstream_consumer" "ORDERS_NEW" {
  * `headers_only` - (optional) When true no message bodies will be delivered only headers
  * `max_batch` - (optional) Limits Pull Batch sizes to this maximum
  * `max_expires` - (optional) Limits the Pull Expires duration to this maximum in seconds
+ * `inactive_threshold` - (optional) Removes the consumer after a idle period, specified as a duration in seconds
+ * `replicas` - (optional) How many replicas of the data to keep in a clustered environment
+ * `memory` - (optional) Force the consumer state to be kept in memory rather than inherit the setting from the stream
+ * `backoff` - (optional) List of durations in Go format that represents a retry time scale for NaK'd messages. A list of durations in seconds
