@@ -213,6 +213,25 @@ func resourceStream() *schema.Resource {
 				Optional:    true,
 				Elem:        &schema.Resource{Schema: sourceInfo},
 			},
+			"republish_source": {
+				Type:        schema.TypeString,
+				Description: "Republish messages to republish_destination",
+				ForceNew:    false,
+				Optional:    true,
+			},
+			"republish_destination": {
+				Type:         schema.TypeString,
+				Description:  "The destination to publish messages to",
+				ForceNew:     false,
+				Optional:     true,
+				RequiredWith: []string{"republish_source"},
+			},
+			"republish_headers_only": {
+				Type:        schema.TypeBool,
+				Description: "Republish only message headers, no bodies",
+				ForceNew:    false,
+				Optional:    true,
+			},
 		},
 	}
 }
@@ -340,6 +359,13 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 			}
 		}
 	}
+
+	if str.IsRepublishing() {
+		d.Set("republish_source", str.Republish().Source)
+		d.Set("republish_destination", str.Republish().Destination)
+		d.Set("republish_headers_only", str.Republish().HeadersOnly)
+	}
+
 	return nil
 }
 

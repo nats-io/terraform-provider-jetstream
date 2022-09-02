@@ -196,6 +196,9 @@ resource "jetstream_consumer" "ORDERS_NEW" {
  * `replicas` - (optional) How many replicas of the data to keep in a clustered environment
  * `memory` - (optional) Force the consumer state to be kept in memory rather than inherit the setting from the stream
  * `backoff` - (optional) List of durations in Go format that represents a retry time scale for NaK'd messages. A list of durations in seconds
+ * `republish_source` - (optional) Republish matching messages to `republish_destination`
+ * `republish_destination` - (optional) The destination to publish messages to
+ * `republish_headers_only` - (optional) Republish only message headers, no bodies
 
 ## jetstream_kv_bucket
 
