@@ -162,6 +162,17 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		Placement:     placement,
 	}
 
+	repubSrc := d.Get("republish_source").(string)
+	repubDest := d.Get("republish_destination").(string)
+	repubHdrs := d.Get("republish_headers_only").(bool)
+	if repubSrc != "" {
+		stream.RePublish = &api.RePublish{
+			Source:      repubSrc,
+			Destination: repubDest,
+			HeadersOnly: repubHdrs,
+		}
+	}
+
 	if description, ok := d.GetOk("description"); ok {
 		stream.Description = description.(string)
 	}

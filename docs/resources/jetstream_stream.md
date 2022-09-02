@@ -60,3 +60,6 @@ Above the `ORDERS_ARCHIVE` stream is a mirror of `ORDERS`, valid options for spe
  * `deny_purge` - (optional) Restricts the ability to purge messages from a stream via the API. Cannot be change once set to true (bool)
  * `allow_rollup_hdrs` - (optional) Allows the use of the Nats-Rollup header to replace all contents of a stream, or subject in a stream, with a single new message (bool)
  * `allow_direct` - (optional) Allow higher performance, direct access to get individual messages via the $JS.DS.GET API (bool)
+ * `republish_source` - (optional) Republish matching messages to `republish_destination`
+ * `republish_destination` - (optional) The destination to publish messages to
+ * `republish_headers_only` - (optional) Republish only message headers, no bodies
