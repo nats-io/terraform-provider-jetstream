@@ -193,7 +193,7 @@ func resourceStream() *schema.Resource {
 	}
 }
 
-func resourceStreamCreate(d *schema.ResourceData, m interface{}) error {
+func resourceStreamCreate(d *schema.ResourceData, m any) error {
 	cfg, err := streamConfigFromResourceData(d)
 	if err != nil {
 		return err
@@ -215,7 +215,7 @@ func resourceStreamCreate(d *schema.ResourceData, m interface{}) error {
 	return resourceStreamRead(d, m)
 }
 
-func resourceStreamRead(d *schema.ResourceData, m interface{}) error {
+func resourceStreamRead(d *schema.ResourceData, m any) error {
 	name, err := parseStreamID(d.Id())
 	if err != nil {
 		return err
@@ -315,7 +315,7 @@ func resourceStreamRead(d *schema.ResourceData, m interface{}) error {
 	return nil
 }
 
-func resourceStreamUpdate(d *schema.ResourceData, m interface{}) error {
+func resourceStreamUpdate(d *schema.ResourceData, m any) error {
 	name := d.Get("name").(string)
 
 	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
@@ -351,7 +351,7 @@ func resourceStreamUpdate(d *schema.ResourceData, m interface{}) error {
 	return resourceStreamRead(d, m)
 }
 
-func resourceStreamDelete(d *schema.ResourceData, m interface{}) error {
+func resourceStreamDelete(d *schema.ResourceData, m any) error {
 	name := d.Get("name").(string)
 
 	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()

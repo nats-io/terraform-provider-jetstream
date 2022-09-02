@@ -281,7 +281,7 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 	return cfg, nil
 }
 
-func resourceConsumerUpdate(d *schema.ResourceData, m interface{}) error {
+func resourceConsumerUpdate(d *schema.ResourceData, m any) error {
 	stream := d.Get("stream_id").(string)
 	if stream == "" {
 		return fmt.Errorf("cannot determine stream name for update")
@@ -346,7 +346,7 @@ func resourceConsumerUpdate(d *schema.ResourceData, m interface{}) error {
 	return resourceConsumerRead(d, m)
 }
 
-func resourceConsumerCreate(d *schema.ResourceData, m interface{}) error {
+func resourceConsumerCreate(d *schema.ResourceData, m any) error {
 	cfg, err := consumerConfigFromResourceData(d)
 	if err != nil {
 		return err
@@ -373,7 +373,7 @@ func resourceConsumerCreate(d *schema.ResourceData, m interface{}) error {
 	return resourceConsumerRead(d, m)
 }
 
-func resourceConsumerRead(d *schema.ResourceData, m interface{}) error {
+func resourceConsumerRead(d *schema.ResourceData, m any) error {
 	stream, name, err := parseConsumerID(d.Id())
 	if err != nil {
 		return err
@@ -472,7 +472,7 @@ func resourceConsumerRead(d *schema.ResourceData, m interface{}) error {
 	return nil
 }
 
-func resourceConsumerDelete(d *schema.ResourceData, m interface{}) error {
+func resourceConsumerDelete(d *schema.ResourceData, m any) error {
 	streamName, durableName, err := parseConsumerID(d.Id())
 	if err != nil {
 		return err

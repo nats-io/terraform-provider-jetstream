@@ -118,7 +118,7 @@ func resourceStreamTemplate() *schema.Resource {
 	}
 }
 
-func resourceStreamTemplateCreate(d *schema.ResourceData, m interface{}) error {
+func resourceStreamTemplateCreate(d *schema.ResourceData, m any) error {
 	cfg, err := streamConfigFromResourceData(d)
 	if err != nil {
 		return err
@@ -143,7 +143,7 @@ func resourceStreamTemplateCreate(d *schema.ResourceData, m interface{}) error {
 	return resourceStreamTemplateRead(d, m)
 }
 
-func resourceStreamTemplateRead(d *schema.ResourceData, m interface{}) error {
+func resourceStreamTemplateRead(d *schema.ResourceData, m any) error {
 	tname, err := parseStreamTemplateID(d.Id())
 	if err != nil {
 		return err
@@ -206,7 +206,7 @@ func resourceStreamTemplateRead(d *schema.ResourceData, m interface{}) error {
 	return nil
 }
 
-func resourceStreamTemplateDelete(d *schema.ResourceData, m interface{}) error {
+func resourceStreamTemplateDelete(d *schema.ResourceData, m any) error {
 	name, err := parseStreamTemplateID(d.Id())
 	if err != nil {
 		return err

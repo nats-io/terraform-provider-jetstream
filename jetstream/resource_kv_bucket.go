@@ -91,7 +91,7 @@ func resourceKVBucket() *schema.Resource {
 	}
 }
 
-func resourceKVBucketCreate(d *schema.ResourceData, m interface{}) error {
+func resourceKVBucketCreate(d *schema.ResourceData, m any) error {
 	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
 	if err != nil {
 		return err
@@ -112,7 +112,7 @@ func resourceKVBucketCreate(d *schema.ResourceData, m interface{}) error {
 		placement = &nats.Placement{Cluster: c.(string)}
 		pt, ok := d.GetOk("placement_tags")
 		if ok {
-			ts := pt.([]interface{})
+			ts := pt.([]any)
 			var tags = make([]string, len(ts))
 			for i, tag := range ts {
 				tags[i] = tag.(string)
@@ -154,7 +154,7 @@ func resourceKVBucketCreate(d *schema.ResourceData, m interface{}) error {
 	return resourceKVBucketRead(d, m)
 }
 
-func resourceKVBucketRead(d *schema.ResourceData, m interface{}) error {
+func resourceKVBucketRead(d *schema.ResourceData, m any) error {
 	name, err := parseStreamKVID(d.Id())
 	if err != nil {
 		return err
@@ -199,7 +199,7 @@ func resourceKVBucketRead(d *schema.ResourceData, m interface{}) error {
 	return nil
 }
 
-func resourceKVBucketUpdate(d *schema.ResourceData, m interface{}) error {
+func resourceKVBucketUpdate(d *schema.ResourceData, m any) error {
 	name := d.Get("name").(string)
 
 	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
@@ -248,7 +248,7 @@ func resourceKVBucketUpdate(d *schema.ResourceData, m interface{}) error {
 	return resourceKVBucketRead(d, m)
 }
 
-func resourceKVBucketDelete(d *schema.ResourceData, m interface{}) error {
+func resourceKVBucketDelete(d *schema.ResourceData, m any) error {
 	name := d.Get("name").(string)
 
 	nc, _, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
