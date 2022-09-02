@@ -158,6 +158,30 @@ func resourceStream() *schema.Resource {
 				Default:     1,
 				Optional:    true,
 			},
+			"deny_delete": {
+				Type:        schema.TypeBool,
+				Description: "Restricts the ability to delete messages from a stream via the API. Cannot be changed once set to true",
+				Default:     false,
+				Optional:    true,
+			},
+			"deny_purge": {
+				Type:        schema.TypeBool,
+				Description: "Restricts the ability to purge messages from a stream via the API. Cannot be change once set to true",
+				Default:     false,
+				Optional:    true,
+			},
+			"allow_rollup_hdrs": {
+				Type:        schema.TypeBool,
+				Description: "Allows the use of the Nats-Rollup header to replace all contents of a stream, or subject in a stream, with a single new message",
+				Default:     false,
+				Optional:    true,
+			},
+			"allow_direct": {
+				Type:        schema.TypeBool,
+				Description: "Allow higher performance, direct access to get individual messages via the $JS.DS.GET API",
+				Default:     true,
+				Optional:    true,
+			},
 			"placement_cluster": {
 				Type:        schema.TypeString,
 				Description: "Place the stream in a specific cluster, influenced by placement_tags",
@@ -258,6 +282,10 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 	d.Set("max_msg_size", int(str.MaxMsgSize()))
 	d.Set("replicas", str.Replicas())
 	d.Set("ack", !str.NoAck())
+	d.Set("deny_delete", !str.DeleteAllow())
+	d.Set("deny_purge", !str.PurgeAllowed())
+	d.Set("allow_rollup_hdrs", str.RollupAllowed())
+	d.Set("allow_direct", str.DirectAllowed())
 
 	if str.MaxAge() == -1 || str.MaxAge() == 0 {
 		d.Set("max_age", "-1")

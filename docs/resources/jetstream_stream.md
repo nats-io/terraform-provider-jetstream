@@ -18,7 +18,7 @@ resource "jetstream_stream" "ORDERS_ARCHIVE" {
   name     = "ORDERS_ARCHIVE"
   storage  = "file"
   max_age  = 5 * 60 * 60 * 24 * 365
-  
+
   mirror {
     name = "ORDERS"
   }
@@ -56,3 +56,7 @@ Above the `ORDERS_ARCHIVE` stream is a mirror of `ORDERS`, valid options for spe
  * `placement_tags` - (optional) Place the stream only on servers with these tags
  * `source` - (optional) List of streams to source
  * `mirror` - (optional) Stream to mirror
+ * `deny_delete` - (optional) Restricts the ability to delete messages from a stream via the API. Cannot be changed once set to true (bool)
+ * `deny_purge` - (optional) Restricts the ability to purge messages from a stream via the API. Cannot be change once set to true (bool)
+ * `allow_rollup_hdrs` - (optional) Allows the use of the Nats-Rollup header to replace all contents of a stream, or subject in a stream, with a single new message (bool)
+ * `allow_direct` - (optional) Allow higher performance, direct access to get individual messages via the $JS.DS.GET API (bool)
