@@ -203,6 +203,13 @@ func resourceConsumer() *schema.Resource {
 				Default:     "",
 				ForceNew:    false,
 			},
+			"max_bytes": {
+				Type:        schema.TypeInt,
+				Description: "The maximum bytes value that maybe set when dong a pull on a Pull Consumer",
+				Optional:    true,
+				Default:     "",
+				ForceNew:    false,
+			},
 			"inactive_threshold": {
 				Type:        schema.TypeInt,
 				Description: "Removes the consumer after a idle period, specified as a duration in seconds",
@@ -238,23 +245,24 @@ func resourceConsumer() *schema.Resource {
 
 func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerConfig, err error) {
 	cfg = api.ConsumerConfig{
-		Durable:           d.Get("durable_name").(string),
-		AckWait:           time.Duration(d.Get("ack_wait").(int)) * time.Second,
-		MaxDeliver:        d.Get("max_delivery").(int),
-		FilterSubject:     d.Get("filter_subject").(string),
-		SampleFrequency:   fmt.Sprintf("%d%%", d.Get("sample_freq").(int)),
-		DeliverSubject:    d.Get("delivery_subject").(string),
-		DeliverPolicy:     api.DeliverAll,
-		RateLimit:         uint64(d.Get("ratelimit").(int)),
-		MaxAckPending:     d.Get("max_ack_pending").(int),
-		FlowControl:       d.Get("flow_control").(bool),
-		Heartbeat:         time.Duration(d.Get("heartbeat").(int)) * time.Second,
-		HeadersOnly:       d.Get("headers_only").(bool),
-		MaxRequestBatch:   d.Get("max_batch").(int),
-		MaxRequestExpires: time.Duration(d.Get("max_expires").(int)) * time.Second,
-		Replicas:          d.Get("replicas").(int),
-		MemoryStorage:     d.Get("memory").(bool),
-		InactiveThreshold: time.Duration(d.Get("inactive_threshold").(int)) * time.Second,
+		Durable:            d.Get("durable_name").(string),
+		AckWait:            time.Duration(d.Get("ack_wait").(int)) * time.Second,
+		MaxDeliver:         d.Get("max_delivery").(int),
+		FilterSubject:      d.Get("filter_subject").(string),
+		SampleFrequency:    fmt.Sprintf("%d%%", d.Get("sample_freq").(int)),
+		DeliverSubject:     d.Get("delivery_subject").(string),
+		DeliverPolicy:      api.DeliverAll,
+		RateLimit:          uint64(d.Get("ratelimit").(int)),
+		MaxAckPending:      d.Get("max_ack_pending").(int),
+		FlowControl:        d.Get("flow_control").(bool),
+		Heartbeat:          time.Duration(d.Get("heartbeat").(int)) * time.Second,
+		HeadersOnly:        d.Get("headers_only").(bool),
+		MaxRequestBatch:    d.Get("max_batch").(int),
+		MaxRequestExpires:  time.Duration(d.Get("max_expires").(int)) * time.Second,
+		MaxRequestMaxBytes: d.Get("max_bytes").(int),
+		Replicas:           d.Get("replicas").(int),
+		MemoryStorage:      d.Get("memory").(bool),
+		InactiveThreshold:  time.Duration(d.Get("inactive_threshold").(int)) * time.Second,
 	}
 
 	if description, ok := d.GetOk("description"); ok {
@@ -462,6 +470,7 @@ func resourceConsumerRead(d *schema.ResourceData, m any) error {
 	d.Set("headers_only", cons.IsHeadersOnly())
 	d.Set("max_batch", cons.MaxRequestBatch())
 	d.Set("max_expires", cons.MaxRequestExpires().Seconds())
+	d.Set("max_bytes", cons.MaxRequestMaxBytes())
 	d.Set("replicas", cons.Replicas())
 	d.Set("memory", cons.MemoryStorage())
 

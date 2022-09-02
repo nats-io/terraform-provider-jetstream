@@ -44,6 +44,7 @@ resource "jetstream_consumer" "ORDERS_NEW" {
  * `max_waiting` - (optional) The number of pulls that can be outstanding on a pull consumer, pulls received after this is reached are ignored
  * `headers_only` - (optional) When true no message bodies will be delivered only headers
  * `max_batch` - (optional) Limits Pull Batch sizes to this maximum
+ * `max_bytes` - (optional)The maximum bytes value that maybe set when dong a pull on a Pull Consumer
  * `max_expires` - (optional) Limits the Pull Expires duration to this maximum in seconds
  * `inactive_threshold` - (optional) Removes the consumer after a idle period, specified as a duration in seconds
  * `replicas` - (optional) How many replicas of the data to keep in a clustered environment
