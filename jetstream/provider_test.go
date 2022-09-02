@@ -1,8 +1,8 @@
 package jetstream
 
 import (
-	"io/ioutil"
 	"log"
+	"os"
 	"testing"
 	"time"
 
@@ -31,7 +31,7 @@ func init() {
 	}
 }
 
-func checkErr(t *testing.T, err error, format string, a ...interface{}) {
+func checkErr(t *testing.T, err error, format string, a ...any) {
 	t.Helper()
 
 	if err == nil {
@@ -44,7 +44,7 @@ func checkErr(t *testing.T, err error, format string, a ...interface{}) {
 func createJSServer(t *testing.T) (srv *server.Server) {
 	t.Helper()
 
-	dir, err := ioutil.TempDir("", "")
+	dir, err := os.MkdirTemp("", "")
 	checkErr(t, err, "could not create temporary js store: %v", err)
 
 	srv, err = server.NewServer(&server.Options{
@@ -65,7 +65,7 @@ func createJSServer(t *testing.T) (srv *server.Server) {
 func createJSTLSServer(t *testing.T) (srv *server.Server) {
 	t.Helper()
 
-	dir, err := ioutil.TempDir("", "")
+	dir, err := os.MkdirTemp("", "")
 	checkErr(t, err, "could not create temporary js store: %v", err)
 
 	tlsConfig, err := newTLSConfig(caPEM, certPEM, keyPEM)

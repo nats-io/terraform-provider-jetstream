@@ -67,8 +67,8 @@ func validateStorageTypeString() schema.SchemaValidateFunc {
 	return validation.StringInSlice([]string{"file", "memory"}, false)
 }
 
-func streamSourceFromResourceData(d interface{}) ([]*api.StreamSource, error) {
-	ss := d.([]interface{})
+func streamSourceFromResourceData(d any) ([]*api.StreamSource, error) {
+	ss := d.([]any)
 	if len(ss) == 0 {
 		return nil, fmt.Errorf("no data received")
 	}
@@ -76,7 +76,7 @@ func streamSourceFromResourceData(d interface{}) ([]*api.StreamSource, error) {
 	var res []*api.StreamSource
 
 	for _, sd := range ss {
-		s, ok := sd.(map[string]interface{})
+		s, ok := sd.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("invalid hashmap received")
 		}
@@ -96,9 +96,9 @@ func streamSourceFromResourceData(d interface{}) ([]*api.StreamSource, error) {
 			source.OptStartTime = &ts
 		}
 
-		exts := s["external"].([]interface{})
+		exts := s["external"].([]any)
 		if len(exts) > 0 {
-			ext := exts[0].(map[string]interface{})
+			ext := exts[0].(map[string]any)
 			source.External = &api.ExternalStream{
 				ApiPrefix:     ext["api"].(string),
 				DeliverPrefix: ext["deliver"].(string),
@@ -131,7 +131,7 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		storage = api.MemoryStorage
 	}
 
-	subs := d.Get("subjects").([]interface{})
+	subs := d.Get("subjects").([]any)
 	var subjects = make([]string, len(subs))
 	for i, sub := range subs {
 		subjects[i] = sub.(string)
@@ -143,7 +143,7 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		placement = &api.Placement{Cluster: c.(string)}
 		pt, ok := d.GetOk("placement_tags")
 		if ok {
-			ts := pt.([]interface{})
+			ts := pt.([]any)
 			var tags = make([]string, len(ts))
 			for i, tag := range ts {
 				tags[i] = tag.(string)
@@ -301,7 +301,7 @@ func getConnectProperties(d *schema.ResourceData) (*connectProperties, error) {
 		set := s.(*schema.Set)
 
 		for _, v := range set.List() {
-			m := v.(map[string]interface{})
+			m := v.(map[string]any)
 
 			for k, v := range m {
 				switch {
@@ -323,7 +323,7 @@ func getConnectProperties(d *schema.ResourceData) (*connectProperties, error) {
 	return &p, nil
 }
 
-func connectMgr(d *schema.ResourceData) (interface{}, error) {
+func connectMgr(d *schema.ResourceData) (any, error) {
 	return func() (*nats.Conn, *jsm.Manager, error) {
 		props, err := getConnectProperties(d)
 		if err != nil {

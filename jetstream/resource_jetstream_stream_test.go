@@ -9,7 +9,7 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-const testStreamConfig_basic = `
+const testStreamConfigBasic = `
 provider "jetstream" {
 	servers = "%s"
 }
@@ -20,7 +20,7 @@ resource "jetstream_stream" "test" {
     description = "testing stream"
 }`
 
-const testStreamConfig_OtherSubjects = `
+const testStreamConfigOtherSubjects = `
 provider "jetstream" {
 	servers = "%s"
 }
@@ -33,7 +33,7 @@ resource "jetstream_stream" "test" {
 }
 `
 
-const testStreamConfig_Mirror = `
+const testStreamConfigMirror = `
 provider "jetstream" {
 	servers = "%s"
 }
@@ -47,7 +47,7 @@ resource "jetstream_stream" "test" {
 	name = "TEST"
 	mirror {
 		name = "OTHER"
-		filter_subject = "FILTER"
+		filter_subject = "js.in.>"
 		start_seq = 11
 		external {
 			api = "js.api.ext"
@@ -57,7 +57,7 @@ resource "jetstream_stream" "test" {
 }
 `
 
-const testStreamConfig_Sources = `
+const testStreamConfigSources = `
 provider "jetstream" {
 	servers = "%s"
 }
@@ -106,7 +106,7 @@ func TestResourceStream(t *testing.T) {
 		CheckDestroy: testStreamDoesNotExist(t, mgr, "TEST"),
 		Steps: []resource.TestStep{
 			{
-				Config: fmt.Sprintf(testStreamConfig_basic, nc.ConnectedUrl()),
+				Config: fmt.Sprintf(testStreamConfigBasic, nc.ConnectedUrl()),
 				Check: resource.ComposeTestCheckFunc(
 					testStreamExist(t, mgr, "TEST"),
 					testStreamHasSubjects(t, mgr, "TEST", []string{"TEST.*"}),
@@ -115,7 +115,7 @@ func TestResourceStream(t *testing.T) {
 				),
 			},
 			{
-				Config: fmt.Sprintf(testStreamConfig_OtherSubjects, nc.ConnectedUrl()),
+				Config: fmt.Sprintf(testStreamConfigOtherSubjects, nc.ConnectedUrl()),
 				Check: resource.ComposeTestCheckFunc(
 					testStreamExist(t, mgr, "TEST"),
 					testStreamHasSubjects(t, mgr, "TEST", []string{"OTHER.*"}),
@@ -124,11 +124,11 @@ func TestResourceStream(t *testing.T) {
 				),
 			},
 			{
-				Config: fmt.Sprintf(testStreamConfig_Mirror, nc.ConnectedUrl()),
+				Config: fmt.Sprintf(testStreamConfigMirror, nc.ConnectedUrl()),
 				Check: resource.ComposeTestCheckFunc(
 					testStreamExist(t, mgr, "TEST"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.name", "OTHER"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.filter_subject", "FILTER"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.filter_subject", "js.in.>"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.start_seq", "11"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.external.0.api", "js.api.ext"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.external.0.deliver", "js.deliver.ext"),
@@ -137,7 +137,7 @@ func TestResourceStream(t *testing.T) {
 				),
 			},
 			{
-				Config: fmt.Sprintf(testStreamConfig_Sources, nc.ConnectedUrl()),
+				Config: fmt.Sprintf(testStreamConfigSources, nc.ConnectedUrl()),
 				Check: resource.ComposeTestCheckFunc(
 					testStreamExist(t, mgr, "TEST"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "source.0.name", "OTHER1"),
