@@ -3,12 +3,12 @@ module github.com/nats-io/terraform-provider-jetstream
 go 1.18
 
 require (
-	github.com/google/go-cmp v0.5.8
+	github.com/google/go-cmp v0.5.9
 	github.com/hashicorp/terraform-plugin-sdk v1.17.2
-	github.com/nats-io/jsm.go v0.0.34-0.20220901094622-4aa7d048e27a
+	github.com/nats-io/jsm.go v0.0.34
 	github.com/nats-io/jwt/v2 v2.3.0
-	github.com/nats-io/nats-server/v2 v2.8.5-0.20220901192829-c4b5ca7cff77
-	github.com/nats-io/nats.go v1.16.1-0.20220831224735-5d4f44e50975
+	github.com/nats-io/nats-server/v2 v2.9.0
+	github.com/nats-io/nats.go v1.16.1-0.20220906180156-a1017eec10b0
 	github.com/xeipuuv/gojsonschema v1.2.0
 )
 
@@ -87,7 +87,7 @@ require (
 	golang.org/x/mod v0.5.1 // indirect
 	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2 // indirect
 	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43 // indirect
-	golang.org/x/sys v0.0.0-20220829200755-d48e67d00261 // indirect
+	golang.org/x/sys v0.0.0-20220908164124-27713097b956 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20220722155302-e5dcc9cfc0b9 // indirect
 	golang.org/x/tools v0.1.9 // indirect
