@@ -5,10 +5,10 @@ go 1.18
 require (
 	github.com/google/go-cmp v0.5.9
 	github.com/hashicorp/terraform-plugin-sdk v1.17.2
-	github.com/nats-io/jsm.go v0.0.34
+	github.com/nats-io/jsm.go v0.0.35-0.20220930094031-ec07abe149c8
 	github.com/nats-io/jwt/v2 v2.3.0
-	github.com/nats-io/nats-server/v2 v2.9.0
-	github.com/nats-io/nats.go v1.16.1-0.20220906180156-a1017eec10b0
+	github.com/nats-io/nats-server/v2 v2.9.2
+	github.com/nats-io/nats.go v1.17.0
 	github.com/xeipuuv/gojsonschema v1.2.0
 )
 
@@ -56,7 +56,7 @@ require (
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jstemmer/go-junit-report v0.9.1 // indirect
-	github.com/klauspost/compress v1.15.9 // indirect
+	github.com/klauspost/compress v1.15.11 // indirect
 	github.com/mattn/go-colorable v0.1.1 // indirect
 	github.com/mattn/go-isatty v0.0.5 // indirect
 	github.com/minio/highwayhash v1.0.2 // indirect
@@ -82,14 +82,14 @@ require (
 	github.com/zclconf/go-cty v1.10.0 // indirect
 	github.com/zclconf/go-cty-yaml v1.0.2 // indirect
 	go.opencensus.io v0.22.4 // indirect
-	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90 // indirect
+	golang.org/x/crypto v0.0.0-20220926161630-eccd6366d1be // indirect
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
 	golang.org/x/mod v0.5.1 // indirect
 	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2 // indirect
 	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43 // indirect
-	golang.org/x/sys v0.0.0-20220908164124-27713097b956 // indirect
+	golang.org/x/sys v0.0.0-20220928140112-f11e5e49a4ec // indirect
 	golang.org/x/text v0.3.7 // indirect
-	golang.org/x/time v0.0.0-20220722155302-e5dcc9cfc0b9 // indirect
+	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af // indirect
 	golang.org/x/tools v0.1.9 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/api v0.34.0 // indirect
