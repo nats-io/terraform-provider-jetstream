@@ -53,6 +53,10 @@ func validateRetentionTypeString() schema.SchemaValidateFunc {
 	return validation.StringInSlice([]string{"limits", "interest", "workqueue"}, false)
 }
 
+func validateDiscardPolicy() schema.SchemaValidateFunc {
+	return validation.StringInSlice([]string{"old", "new"}, false)
+}
+
 func validateStorageTypeString() schema.SchemaValidateFunc {
 	return validation.StringInSlice([]string{"file", "memory"}, false)
 }
@@ -104,6 +108,7 @@ func streamSourceFromResourceData(d any) ([]*api.StreamSource, error) {
 func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig, err error) {
 	var retention api.RetentionPolicy
 	var storage api.StorageType
+	var discard api.DiscardPolicy
 
 	switch d.Get("retention").(string) {
 	case "limits":
@@ -119,6 +124,13 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		storage = api.FileStorage
 	case "memory":
 		storage = api.MemoryStorage
+	}
+
+	switch d.Get("discard").(string) {
+	case "new":
+		discard = api.DiscardNew
+	case "old":
+		discard = api.DiscardOld
 	}
 
 	subs := d.Get("subjects").([]any)
@@ -146,6 +158,8 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		Name:          d.Get("name").(string),
 		Subjects:      subjects,
 		Retention:     retention,
+		Discard:       discard,
+		DiscardNewPer: d.Get("discard_new_per_subject").(bool),
 		MaxConsumers:  d.Get("max_consumers").(int),
 		MaxMsgs:       int64(d.Get("max_msgs").(int)),
 		MaxBytes:      int64(d.Get("max_bytes").(int)),

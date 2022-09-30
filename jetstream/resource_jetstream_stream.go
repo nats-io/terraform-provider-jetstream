@@ -89,6 +89,19 @@ func resourceStream() *schema.Resource {
 					Type: schema.TypeString,
 				},
 			},
+			"discard": {
+				Type:         schema.TypeString,
+				Description:  "When a Stream reach it's limits either old messages are deleted or new ones are denied",
+				Optional:     true,
+				Default:      "old",
+				ValidateFunc: validateDiscardPolicy(),
+			},
+			"discard_new_per_subject": {
+				Type:        schema.TypeBool,
+				Description: "When discard policy is new and the stream is one with max messages per subject set, this will apply the new behavior to every subject. Essentially turning discard new from maximum number of subjects into maximum number of messages in a subject",
+				Optional:    true,
+				Default:     false,
+			},
 			"max_msgs": {
 				Type:        schema.TypeInt,
 				Description: "The maximum amount of messages that can be kept in the stream",
@@ -301,13 +314,21 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 	d.Set("max_msg_size", int(str.MaxMsgSize()))
 	d.Set("replicas", str.Replicas())
 	d.Set("ack", !str.NoAck())
-	d.Set("deny_delete", !str.DeleteAllow())
+	d.Set("deny_delete", !str.DeleteAllowed())
 	d.Set("deny_purge", !str.PurgeAllowed())
 	d.Set("allow_rollup_hdrs", str.RollupAllowed())
 	d.Set("allow_direct", str.DirectAllowed())
+	d.Set("discard_new_per_subject", str.DiscardNewPerSubject())
 
 	if str.MaxAge() == -1 || str.MaxAge() == 0 {
 		d.Set("max_age", "-1")
+	}
+
+	switch str.DiscardPolicy() {
+	case api.DiscardNew:
+		d.Set("discard", "new")
+	case api.DiscardOld:
+		d.Set("discard", "old")
 	}
 
 	switch str.Storage() {
