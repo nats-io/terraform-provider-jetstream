@@ -62,7 +62,7 @@ func createJSServer(t *testing.T) (srv *server.Server) {
 	return srv
 }
 
-func createJSTLSServer(t *testing.T) (srv *server.Server) {
+func createJSTLSServer(t *testing.T, verifyClientCert bool) (srv *server.Server) {
 	t.Helper()
 
 	dir, err := os.MkdirTemp("", "")
@@ -79,6 +79,7 @@ func createJSTLSServer(t *testing.T) (srv *server.Server) {
 		JetStream: true,
 		TLS:       true,
 		TLSConfig: tlsConfig,
+		TLSVerify: verifyClientCert,
 	})
 	checkErr(t, err, "could not start js server: %v", err)
 

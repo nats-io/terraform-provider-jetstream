@@ -260,14 +260,18 @@ func wipeSlice(buf []byte) {
 }
 
 type connectProperties struct {
-	creds      string
-	credData   []byte
-	servers    string
-	user       string
-	pass       string
-	nkey       string
-	caFile     string
-	cleanupPem func()
+	creds           string
+	credData        []byte
+	servers         string
+	user            string
+	pass            string
+	nkey            string
+	caFile          string
+	certFile        string
+	keyFile         string
+	cleanupCaFile   func()
+	cleanupCertFile func()
+	cleanupKeyFile  func()
 }
 
 func getConnectProperties(d *schema.ResourceData) (*connectProperties, error) {
@@ -275,14 +279,18 @@ func getConnectProperties(d *schema.ResourceData) (*connectProperties, error) {
 	defer connectMu.Unlock()
 
 	p := connectProperties{
-		creds:      "",
-		credData:   nil,
-		servers:    "",
-		user:       "",
-		pass:       "",
-		nkey:       "",
-		caFile:     "",
-		cleanupPem: nil,
+		creds:           "",
+		credData:        nil,
+		servers:         "",
+		user:            "",
+		pass:            "",
+		nkey:            "",
+		caFile:          "",
+		certFile:        "",
+		keyFile:         "",
+		cleanupCaFile:   nil,
+		cleanupCertFile: nil,
+		cleanupKeyFile:  nil,
 	}
 
 	s := d.Get("credentials")
@@ -326,14 +334,39 @@ func getConnectProperties(d *schema.ResourceData) (*connectProperties, error) {
 				switch {
 				case k == "ca_file" && len(v.(string)) > 0:
 					p.caFile = v.(string)
+
 				case k == "ca_file_data" && len(v.(string)) > 0:
 					file, cleanup, err := newTempPEMFile(v.(string))
 					if err != nil {
 						return nil, err
 					}
 
-					p.cleanupPem = cleanup
+					p.cleanupCaFile = cleanup
 					p.caFile = file
+
+				case k == "cert_file" && len(v.(string)) > 0:
+					p.certFile = v.(string)
+
+				case k == "cert_file_data" && len(v.(string)) > 0:
+					file, cleanup, err := newTempPEMFile(v.(string))
+					if err != nil {
+						return nil, err
+					}
+
+					p.cleanupCertFile = cleanup
+					p.certFile = file
+
+				case k == "key_file" && len(v.(string)) > 0:
+					p.keyFile = v.(string)
+
+				case k == "key_file_data" && len(v.(string)) > 0:
+					file, cleanup, err := newTempPEMFile(v.(string))
+					if err != nil {
+						return nil, err
+					}
+
+					p.cleanupKeyFile = cleanup
+					p.keyFile = file
 				}
 			}
 		}
@@ -390,11 +423,27 @@ func connectMgr(d *schema.ResourceData) (any, error) {
 		}
 
 		if len(props.caFile) > 0 {
-			if props.cleanupPem != nil {
-				defer props.cleanupPem()
+			if props.cleanupCaFile != nil {
+				defer props.cleanupCaFile()
 			}
 
 			opts = append(opts, nats.RootCAs(props.caFile))
+		}
+
+		if len(props.certFile) > 0 || len(props.keyFile) > 0 {
+			if props.cleanupCertFile != nil {
+				defer props.cleanupCertFile()
+			}
+
+			if props.cleanupKeyFile != nil {
+				defer props.cleanupKeyFile()
+			}
+
+			if len(props.certFile) == 0 || len(props.keyFile) == 0 {
+				return nil, nil, fmt.Errorf("cert_file and key_file depend on each other, if one is provided the other one must be provided as well")
+			}
+
+			opts = append(opts, nats.ClientCert(props.certFile, props.keyFile))
 		}
 
 		nc, err := nats.Connect(props.servers, opts...)
