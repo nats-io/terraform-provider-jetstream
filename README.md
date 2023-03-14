@@ -134,7 +134,6 @@ resource "jetstream_stream" "ORDERS" {
  * `storage` - (optional) The storage engine to use to back the stream (string)
  * `subjects` - The list of subjects that will be consumed by the Stream (["list", "string"])
  * `duplicate_window` - (optional) The time window size for duplicate tracking, duration specified in seconds (number)
- * `replicas` - (optional) How many replicas of the data to keep in a clustered environment
  * `placement_cluster` - (optional) Place the stream in a specific cluster, influenced by placement_tags
  * `placement_tags` - (optional) Place the stream only on servers with these tags
  * `source` - (optional) List of streams to source
