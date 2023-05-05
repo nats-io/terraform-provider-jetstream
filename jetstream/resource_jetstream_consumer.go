@@ -90,7 +90,7 @@ func resourceConsumer() *schema.Resource {
 				Type:         schema.TypeBool,
 				Description:  "Starts with the next available message in the Stream",
 				Optional:     true,
-				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last", "deliver_new"},
+				ExactlyOneOf: []string{"stream_sequence", "start_time", "deliver_all", "deliver_last", "deliver_new", "deliver_last_per_subject"},
 				ForceNew:     true,
 			},
 			"delivery_group": {
