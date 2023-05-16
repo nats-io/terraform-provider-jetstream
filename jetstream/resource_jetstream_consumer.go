@@ -493,12 +493,15 @@ func resourceConsumerRead(d *schema.ResourceData, m any) error {
 		d.Set("start_time", cons.StartTime())
 	}
 
-	s := strings.TrimSuffix(cons.SampleFrequency(), "%")
-	freq, err := strconv.Atoi(s)
-	if err != nil {
-		return fmt.Errorf("failed to parse consumer sampling configuration: %v", err)
+	if len(cons.SampleFrequency()) > 0 {
+		s := strings.TrimSuffix(cons.SampleFrequency(), "%")
+		freq, err := strconv.Atoi(s)
+		if err != nil {
+			return fmt.Errorf("failed to parse consumer sampling configuration: %v", err)
+		}
+		d.Set("sample_freq", freq)
 	}
-	d.Set("sample_freq", freq)
+
 	d.Set("start_time", "")
 	if !cons.StartTime().IsZero() {
 		d.Set("start_time", cons.StartTime().Format(time.RFC3339))
