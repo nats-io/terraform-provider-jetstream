@@ -480,11 +480,11 @@ func resourceConsumerRead(d *schema.ResourceData, m any) error {
 
 	switch cons.DeliverPolicy() {
 	case api.DeliverAll:
-		d.Set("delivery_all", true)
+		d.Set("deliver_all", true)
 	case api.DeliverNew:
-		d.Set("delivery_new", true)
+		d.Set("deliver_new", true)
 	case api.DeliverLast:
-		d.Set("delivery_last", true)
+		d.Set("deliver_last", true)
 	case api.DeliverLastPerSubject:
 		d.Set("deliver_last_per_subject", true)
 	case api.DeliverByStartSequence:
