@@ -230,3 +230,7 @@ resource "jetstream_kv_bucket" "test" {
  * `max_value_size` - (optional) Maximum size of any value
  * `max_bucket_size` - (optional) The maximum size of all data in the bucket
  * `replicas` - (optional) How many replicas to keep on a JetStream cluster
+
+# Import existing JetStream resources 
+
+See [docs/guides/import.md](docs/guides/import.md) 
