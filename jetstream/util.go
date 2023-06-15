@@ -267,6 +267,8 @@ type connectProperties struct {
 	pass       string
 	nkey       string
 	caFile     string
+	keyFile    string
+	certFile   string
 	cleanupPem func()
 }
 
@@ -324,8 +326,15 @@ func getConnectProperties(d *schema.ResourceData) (*connectProperties, error) {
 
 			for k, v := range m {
 				switch {
+				case k == "key_file" && len(v.(string)) > 0:
+					p.keyFile = v.(string)
+
+				case k == "cert_file" && len(v.(string)) > 0:
+					p.certFile = v.(string)
+
 				case k == "ca_file" && len(v.(string)) > 0:
 					p.caFile = v.(string)
+
 				case k == "ca_file_data" && len(v.(string)) > 0:
 					file, cleanup, err := newTempPEMFile(v.(string))
 					if err != nil {
@@ -387,6 +396,10 @@ func connectMgr(d *schema.ResourceData) (any, error) {
 			}
 
 			opts = append(opts, nko)
+		}
+
+		if len(props.keyFile) > 0 && len(props.certFile) > 0 {
+			opts = append(opts, nats.ClientCert(props.certFile, props.keyFile))
 		}
 
 		if len(props.caFile) > 0 {
