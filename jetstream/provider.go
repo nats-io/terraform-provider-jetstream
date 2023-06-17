@@ -64,16 +64,6 @@ func Provider() terraform.ResourceProvider {
 							Optional:    true,
 							Description: "The root CA (file) content, in PEM format. Needed when the NATS server has TLS enabled with an unknown root CA",
 						},
-						"key_file": {
-							Type:        schema.TypeString,
-							Optional:    true,
-							Description: "Path to a x509 private key used to authenticate to the server if required",
-						},
-						"cert_file": {
-							Type:        schema.TypeString,
-							Optional:    true,
-							Description: "Path to a x509 public certificate used to authenticate to the server if required",
-						},
 					},
 				},
 			},
