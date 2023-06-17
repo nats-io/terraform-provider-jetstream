@@ -103,8 +103,6 @@ provider "jetstream" {
  * `nkey` - (optional) Connects using an nkey stored in a file
  * `tls.ca_file` - (optional) Fully Qualified Path to a file containing Root CA (PEM format). Use when the server has certs signed by an unknown authority.
  * `tls.ca_file_data` - (optional) The Root CA PEM as a string, intended to use with data providers. Use when the server has certs signed by an unknown authority.
- * `tls.key_file` - (optional) Path to a private key, in PEM format, to use for authentication
- * `tls.cert_file` - (optional) Path to a public certificate, in PEM format, to use for authentication
 
 
 ## jetstream_stream
