@@ -80,6 +80,15 @@ func resourceStream() *schema.Resource {
 				Optional:    true,
 				ForceNew:    false,
 			},
+			"metadata": {
+				Type:        schema.TypeMap,
+				Description: "Free form metadata about the stream",
+				Optional:    true,
+				ForceNew:    false,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+			},
 			"subjects": {
 				Type:        schema.TypeList,
 				MinItems:    1,
@@ -304,6 +313,7 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 
 	d.Set("name", str.Name())
 	d.Set("description", str.Description())
+	d.Set("metadata", str.Metadata())
 	d.Set("subjects", str.Subjects())
 	d.Set("max_consumers", str.MaxConsumers())
 	d.Set("max_msgs", int(str.MaxMsgs()))

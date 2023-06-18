@@ -226,6 +226,19 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		return api.StreamConfig{}, fmt.Errorf("subjects are required for streams without mirrors or sources")
 	}
 
+	m, ok := d.GetOk("metadata")
+	if ok {
+		mt, ok := m.(map[string]any)
+		if ok {
+			stream.Metadata = map[string]string{}
+			for k, v := range mt {
+				stream.Metadata[k] = v.(string)
+			}
+		} else {
+			return api.StreamConfig{}, fmt.Errorf("invalid metadata")
+		}
+	}
+
 	ok, errs := stream.Validate(new(SchemaValidator))
 	if !ok {
 		return api.StreamConfig{}, fmt.Errorf(strings.Join(errs, ", "))

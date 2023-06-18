@@ -24,6 +24,7 @@ resource "jetstream_consumer" "ORDERS_NEW" {
 ### Attribute Reference
 
  * `description` - (optional) Contains additional information about this consumer
+ * `metadata` - (optional) A map of strings with arbitrary metadata for the consumer
  * `ack_policy` - (optional) The delivery acknowledgement policy to apply to the Consumer
  * `ack_wait` - (optional) Number of seconds to wait for acknowledgement
  * `deliver_all` - (optional) Starts at the first available message in the Stream
