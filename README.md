@@ -95,15 +95,18 @@ provider "jetstream" {
 
 ### Argument Reference
 
- * `servers` - The list of servers to connect to in a comma seperated list
+ * `servers` - The list of servers to connect to in a comma seperated list.
  * `credentials` - (optional) Fully Qualified Path to a file holding NATS credentials.
  * `credential_data` - (optional) The NATS credentials as a string, intended to use with data providers.
  * `user` - (optional) Connects using a username, when no password is set this is assumed to be a Token.
- * `password` - (optional) Connects using a password
- * `nkey` - (optional) Connects using an nkey stored in a file
+ * `password` - (optional) Connects using a password.
+ * `nkey` - (optional) Connects using an nkey stored in a file.
  * `tls.ca_file` - (optional) Fully Qualified Path to a file containing Root CA (PEM format). Use when the server has certs signed by an unknown authority.
  * `tls.ca_file_data` - (optional) The Root CA PEM as a string, intended to use with data providers. Use when the server has certs signed by an unknown authority.
-
+ * `tls.cert_file` - (optional) The certificate to authenticate with.
+ * `tls.cert_file_data` - (optional) The certificate to authenticate with, intended to use with data providers.
+ * `tls.key_file` - (optional) The private key to authenticate with.
+ * `tls.key_file_data` - (optional) The private key to authenticate with, intended to use with data providers.
 
 ## jetstream_stream
 
