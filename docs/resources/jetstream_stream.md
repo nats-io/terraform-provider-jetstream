@@ -38,6 +38,7 @@ Above the `ORDERS_ARCHIVE` stream is a mirror of `ORDERS`, valid options for spe
 ## Attribute Reference
 
  * `description` - (optional) Contains additional information about this stream (string)
+ * `metadata` - (optional) A map of strings with arbitrary metadata for the stream
  * `discard` - (optional) When a Stream reach it's limits either old messages are deleted or new ones are denied (`new` or `old`)
  * `discard_new_per_subject` - (optional) When discard policy is new and the stream is one with max messages per subject set, this will apply the new behavior to every subject. Essentially turning discard new from maximum number of subjects into maximum number of messages in a subject (bool)
  * `ack` - (optional) If the Stream should support confirming receiving messages via acknowledgements (bool)

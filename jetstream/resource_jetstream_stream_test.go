@@ -18,6 +18,9 @@ resource "jetstream_stream" "test" {
 	name = "TEST"
 	subjects = ["TEST.*"]
     description = "testing stream"
+	metadata = {
+		foo = "bar"
+	}
 }`
 
 const testStreamConfigOtherSubjects = `
@@ -110,6 +113,7 @@ func TestResourceStream(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					testStreamExist(t, mgr, "TEST"),
 					testStreamHasSubjects(t, mgr, "TEST", []string{"TEST.*"}),
+					testStreamHasMetadata(t, mgr, "TEST", map[string]string{"foo": "bar"}),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "max_msgs", "-1"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "description", "testing stream"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "deny_delete", "false"),

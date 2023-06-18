@@ -27,6 +27,9 @@ resource "jetstream_consumer" "TEST_C1" {
   inactive_threshold = 60
   max_delivery       = 10
   backoff            = [30, 60]
+  metadata           = {
+    foo = "bar"
+  }
 }
 `
 
@@ -72,6 +75,7 @@ func TestResourceConsumer(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					testStreamExist(t, mgr, "TEST"),
 					testConsumerExist(t, mgr, "TEST", "C1"),
+					testConsumerHasMetadata(t, mgr, "TEST", "C1", map[string]string{"foo": "bar"}),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C1", "stream_sequence", "0"),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C1", "description", "testing consumer"),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C1", "inactive_threshold", "60"),

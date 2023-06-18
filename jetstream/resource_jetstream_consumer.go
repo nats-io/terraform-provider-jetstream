@@ -37,6 +37,15 @@ func resourceConsumer() *schema.Resource {
 				Optional:    true,
 				ForceNew:    false,
 			},
+			"metadata": {
+				Type:        schema.TypeMap,
+				Description: "Free form metadata about the consumer",
+				Optional:    true,
+				ForceNew:    false,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+			},
 			"durable_name": {
 				Type:         schema.TypeString,
 				Description:  "The durable name of the Consumer",
@@ -246,6 +255,7 @@ func resourceConsumer() *schema.Resource {
 func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerConfig, err error) {
 	cfg = api.ConsumerConfig{
 		Durable:            d.Get("durable_name").(string),
+		Name:               d.Get("durable_name").(string),
 		AckWait:            time.Duration(d.Get("ack_wait").(int)) * time.Second,
 		MaxDeliver:         d.Get("max_delivery").(int),
 		FilterSubject:      d.Get("filter_subject").(string),
@@ -317,6 +327,19 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 		cfg.AckPolicy = api.AckNone
 	}
 
+	m, ok := d.GetOk("metadata")
+	if ok {
+		mt, ok := m.(map[string]any)
+		if ok {
+			cfg.Metadata = map[string]string{}
+			for k, v := range mt {
+				cfg.Metadata[k] = v.(string)
+			}
+		} else {
+			return api.ConsumerConfig{}, fmt.Errorf("invalid metadata")
+		}
+	}
+
 	ok, errs := cfg.Validate(new(SchemaValidator))
 	if !ok {
 		return api.ConsumerConfig{}, fmt.Errorf(strings.Join(errs, ", "))
@@ -369,6 +392,7 @@ func resourceConsumerUpdate(d *schema.ResourceData, m any) error {
 
 	opts := []jsm.ConsumerOption{
 		jsm.ConsumerDescription(cfg.Description),
+		jsm.ConsumerMetadata(cfg.Metadata),
 		jsm.AckWait(cfg.AckWait),
 		jsm.MaxDeliveryAttempts(cfg.MaxDeliver),
 		jsm.SamplePercent(freq),
@@ -454,6 +478,7 @@ func resourceConsumerRead(d *schema.ResourceData, m any) error {
 
 	d.Set("stream", cons.StreamName())
 	d.Set("description", cons.Description())
+	d.Set("metadata", cons.Metadata())
 	d.Set("durable_name", cons.DurableName())
 	d.Set("delivery_subject", cons.DeliverySubject())
 	d.Set("ack_wait", cons.AckWait().Seconds())

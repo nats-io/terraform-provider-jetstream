@@ -10,6 +10,36 @@ import (
 	"github.com/nats-io/jsm.go"
 )
 
+func testStreamHasMetadata(t *testing.T, mgr *jsm.Manager, stream string, metadata map[string]string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		str, err := mgr.LoadStream(stream)
+		if err != nil {
+			return err
+		}
+
+		if cmp.Equal(str.Metadata(), metadata) {
+			return nil
+		}
+
+		return fmt.Errorf("expected %v got %v", metadata, str.Metadata())
+	}
+}
+
+func testConsumerHasMetadata(t *testing.T, mgr *jsm.Manager, stream string, consumer string, metadata map[string]string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		cons, err := mgr.LoadConsumer(stream, consumer)
+		if err != nil {
+			return err
+		}
+
+		if cmp.Equal(cons.Metadata(), metadata) {
+			return nil
+		}
+
+		return fmt.Errorf("expected %v got %v", metadata, cons.Metadata())
+	}
+}
+
 func testStreamHasSubjects(t *testing.T, mgr *jsm.Manager, stream string, subjects []string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		str, err := mgr.LoadStream(stream)

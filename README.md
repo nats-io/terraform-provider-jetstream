@@ -123,6 +123,7 @@ resource "jetstream_stream" "ORDERS" {
 ### Attribute Reference
 
  * `description` - (optional) Contains additional information about this stream (string)
+ * `metadata` - (optional) A map of strings with arbitrary metadata for the stream
  * `ack` - (optional) If the Stream should support confirming receiving messages via acknowledgements (bool)
  * `max_age` - (optional) The maximum oldest message that can be kept in the stream, duration specified in seconds (number)
  * `max_bytes` - (optional) The maximum size of all messages that can be kept in the stream (number)
@@ -171,6 +172,7 @@ resource "jetstream_consumer" "ORDERS_NEW" {
 ### Attribute Reference
 
  * `description` - (optional) Contains additional information about this consumer
+ * `metadata` - (optional) A map of strings with arbitrary metadata for the consumer
  * `discard` - (optional) When a Stream reach it's limits either old messages are deleted or new ones are denied (`new` or `old`)
  * `discard_new_per_subject` - (optional) When discard policy is new and the stream is one with max messages per subject set, this will apply the new behavior to every subject. Essentially turning discard new from maximum number of subjects into maximum number of messages in a subject (bool)
  * `ack_policy` - (optional) The delivery acknowledgement policy to apply to the Consumer
