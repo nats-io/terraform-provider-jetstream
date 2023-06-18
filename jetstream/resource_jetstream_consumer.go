@@ -349,9 +349,14 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 }
 
 func resourceConsumerUpdate(d *schema.ResourceData, m any) error {
-	stream := d.Get("stream_id").(string)
-	if stream == "" {
+	stream_id := d.Get("stream_id").(string)
+	if stream_id == "" {
 		return fmt.Errorf("cannot determine stream name for update")
+	}
+
+	stream, err := parseStreamID(stream_id)
+	if err != nil {
+		return err
 	}
 
 	durable := d.Get("durable_name").(string)
