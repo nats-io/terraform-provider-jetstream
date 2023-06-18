@@ -2,6 +2,7 @@ package jetstream
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
@@ -66,6 +67,9 @@ func TestResourceConsumer(t *testing.T) {
 		t.Fatalf("could not connect: %s", err)
 	}
 
+	updateBasicConfig := strings.ReplaceAll(testConsumerConfig_basic, "testing consumer", "new description")
+	updateBasicConfig = fmt.Sprintf(strings.ReplaceAll(updateBasicConfig, "bar", "baz"), nc.ConnectedUrl())
+
 	resource.Test(t, resource.TestCase{
 		Providers:    testJsProviders,
 		CheckDestroy: testConsumerDoesNotExist(t, mgr, "TEST", "C1"),
@@ -78,6 +82,17 @@ func TestResourceConsumer(t *testing.T) {
 					testConsumerHasMetadata(t, mgr, "TEST", "C1", map[string]string{"foo": "bar"}),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C1", "stream_sequence", "0"),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C1", "description", "testing consumer"),
+					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C1", "inactive_threshold", "60"),
+				),
+			},
+			{
+				Config: updateBasicConfig,
+				Check: resource.ComposeTestCheckFunc(
+					testStreamExist(t, mgr, "TEST"),
+					testConsumerExist(t, mgr, "TEST", "C1"),
+					testConsumerHasMetadata(t, mgr, "TEST", "C1", map[string]string{"foo": "baz"}),
+					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C1", "stream_sequence", "0"),
+					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C1", "description", "new description"),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C1", "inactive_threshold", "60"),
 				),
 			},
