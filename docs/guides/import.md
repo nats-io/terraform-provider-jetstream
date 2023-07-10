@@ -5,11 +5,12 @@ created manually within the NATS JetStream cluster. It's possible to import thes
 and start managing them using Terraform. 
 
 ## Example
-Let a stream called `ORDERS`, a consumer for the `ORDERS` stream
-called `NEW` and a KV bucket called `TEST` be some JetStream resources that already exist in a NATS server.
+Let's create some JetStream resources that will already exist in a NATS server: a stream called `ORDERS`,
+a consumer for the `ORDERS` stream called `NEW`, a KV bucket called `TEST` and a KV entry called `FOO`.
 
-First, we need to define a matching HCL configuration for them. This is because at the time of writing
-the Terraform import functionality can't generate code. 
+Then, we need to define a matching HCL configuration for them. Alternatively, as of version 1.5, Terraform can 
+generate the configuration for us. Refer to the
+[Terraform documentation](https://developer.hashicorp.com/terraform/language/import) for more information.
 
 ```terraform
 resource "jetstream_stream" "ORDERS" {
@@ -34,6 +35,12 @@ resource "jetstream_kv_bucket" "test" {
   max_value_size = 1024
   max_bucket_size = 10240
 }
+
+resource "jetstream_kv_entry" "test_entry" {
+  bucket = jetstream_kv_bucket.test.name
+  key = "FOO"
+  value = "bar"
+}
 ```
 
 Then, we need to run `terraform init`. 
@@ -50,8 +57,7 @@ And `terraform plan` would think all 3 resources need to be created:
 ```zsh
 ➜  git:(main) ✗ terraform plan
 
-Terraform used the selected providers to generate the following execution plan. Resource actions are
-indicated with the following symbols:
+Terraform used the selected providers to generate the following execution plan. Resource actions are indicated with the following symbols:
   + create
 
 Terraform will perform the following actions:
@@ -93,6 +99,15 @@ Terraform will perform the following actions:
       + ttl             = 60
     }
 
+  # jetstream_kv_entry.test_entry will be created
+  + resource "jetstream_kv_entry" "test_entry" {
+      + bucket   = "TEST"
+      + id       = (known after apply)
+      + key      = "FOO"
+      + revision = (known after apply)
+      + value    = "bar"
+    }
+
   # jetstream_stream.ORDERS will be created
   + resource "jetstream_stream" "ORDERS" {
       + ack                     = true
@@ -119,7 +134,7 @@ Terraform will perform the following actions:
         ]
     }
 
-Plan: 3 to add, 0 to change, 0 to destroy.
+Plan: 4 to add, 0 to change, 0 to destroy.
 
 ──────────────────────────────────────────────────────────────────────────────────────────────────────
 ```
@@ -165,6 +180,15 @@ The resources that were imported are shown above. These resources are now in
 your Terraform state and will henceforth be managed by Terraform.
 ```
 
+```zsh
+➜  git:(main) ✗ terraform import jetstream_kv_entry.test_entry JETSTREAM_KV_TEST_ENTRY_FOO
+
+Import successful!
+
+The resources that were imported are shown above. These resources are now in
+your Terraform state and will henceforth be managed by Terraform.
+```
+
 Now all the resources have been imported and can be managed by Terraform. 
 
 ## Terraform JetStream resource IDs 
@@ -174,3 +198,4 @@ In the case of the JetStream provider, the IDs follow the following case sensiti
 * for streams: `JETSTREAM_STREAM_<stream-name>`
 * for consumers: `JETSTREAM_STREAM_<stream-name>_CONSUMER_<consumer-name>`
 * for kv buckets: `JETSTREAM_KV_<bucket-name>`
+* for kv entries: `JETSTREAM_KV_<bucket-name>_ENTRY_<entry-key>`

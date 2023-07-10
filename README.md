@@ -236,6 +236,26 @@ resource "jetstream_kv_bucket" "test" {
  * `max_bucket_size` - (optional) The maximum size of all data in the bucket
  * `replicas` - (optional) How many replicas to keep on a JetStream cluster
 
+## jetstream_kv_entry
+
+Creates a JetStream based KV bucket entry
+
+### Example
+
+```terraform
+resource "jetstream_kv_entry" "test_entry" {
+  bucket = "TEST"
+  key = "foo"
+  value = "bar"
+}
+```
+
+### Attribute Reference
+
+ * `bucket` - (required) The name of the KV bucket
+ * `key` - (required) The entry key
+ * `value` - (required) The entry value
+
 # Import existing JetStream resources 
 
 See [docs/guides/import.md](docs/guides/import.md) 

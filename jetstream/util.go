@@ -20,6 +20,15 @@ var (
 	connectMu sync.Mutex
 )
 
+func parseStreamKVEntryID(id string) (bucket string, key string, err error) {
+	if !kvEntryIdRegex.MatchString(id) {
+		return "", "", fmt.Errorf("invalid kv entry id %q", id)
+	}
+
+	matches := kvEntryIdRegex.FindStringSubmatch(id)
+	return matches[1], matches[2], nil
+}
+
 func parseStreamKVID(id string) (string, error) {
 	if !kvIdRegex.MatchString(id) {
 		return "", fmt.Errorf("invalid kv bucket id %q", id)
