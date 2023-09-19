@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/terraform"
 	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/jsm.go/api"
 )
 
 func testStreamHasMetadata(t *testing.T, mgr *jsm.Manager, stream string, metadata map[string]string) resource.TestCheckFunc {
@@ -99,6 +100,36 @@ func testStreamIsMirrorOf(t *testing.T, mgr *jsm.Manager, stream string, mirror 
 		}
 		if str.Mirror().Name != mirror {
 			return fmt.Errorf("stream is mirror of %q", str.Mirror().Name)
+		}
+
+		return nil
+	}
+}
+
+func testStreamIsCompressed(t *testing.T, mgr *jsm.Manager, stream string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		str, err := mgr.LoadStream(stream)
+		if err != nil {
+			return err
+		}
+
+		if str.Compression() != api.S2Compression {
+			return fmt.Errorf("stream is uncompressed")
+		}
+
+		return nil
+	}
+}
+
+func testStreamIsUnCompressed(t *testing.T, mgr *jsm.Manager, stream string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		str, err := mgr.LoadStream(stream)
+		if err != nil {
+			return err
+		}
+
+		if str.Compression() != api.NoCompression {
+			return fmt.Errorf("stream is compressed")
 		}
 
 		return nil
