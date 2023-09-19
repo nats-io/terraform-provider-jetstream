@@ -18,6 +18,7 @@ resource "jetstream_stream" "test" {
 	name = "TEST"
 	subjects = ["TEST.*"]
     description = "testing stream"
+    compression = "s2"
 	metadata = {
 		foo = "bar"
 	}
@@ -114,15 +115,18 @@ func TestResourceStream(t *testing.T) {
 					testStreamExist(t, mgr, "TEST"),
 					testStreamHasSubjects(t, mgr, "TEST", []string{"TEST.*"}),
 					testStreamHasMetadata(t, mgr, "TEST", map[string]string{"foo": "bar"}),
+					testStreamIsCompressed(t, mgr, "TEST"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "max_msgs", "-1"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "description", "testing stream"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "deny_delete", "false"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "compression", "s2"),
 				),
 			},
 			{
 				Config: fmt.Sprintf(testStreamConfigOtherSubjects, nc.ConnectedUrl()),
 				Check: resource.ComposeTestCheckFunc(
 					testStreamExist(t, mgr, "TEST"),
+					testStreamIsUnCompressed(t, mgr, "TEST"),
 					testStreamHasSubjects(t, mgr, "TEST", []string{"OTHER.*"}),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "max_msgs", "10"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "max_msgs_per_subject", "2"),

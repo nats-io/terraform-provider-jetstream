@@ -168,6 +168,13 @@ func resourceStream() *schema.Resource {
 				Optional:     true,
 				ValidateFunc: validateRetentionTypeString(),
 			},
+			"compression": {
+				Type:         schema.TypeString,
+				Description:  "Optional compression algorithm used for the Stream",
+				Default:      "none",
+				Optional:     true,
+				ValidateFunc: validateCompressionTypeString(),
+			},
 			"max_consumers": {
 				Type:        schema.TypeInt,
 				Description: "Number of consumers this stream allows",
@@ -329,6 +336,7 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 	d.Set("allow_rollup_hdrs", str.RollupAllowed())
 	d.Set("allow_direct", str.DirectAllowed())
 	d.Set("discard_new_per_subject", str.DiscardNewPerSubject())
+	d.Set("compression", str.Compression())
 
 	if str.MaxAge() == -1 || str.MaxAge() == 0 {
 		d.Set("max_age", "-1")

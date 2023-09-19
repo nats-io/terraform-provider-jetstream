@@ -58,6 +58,10 @@ func parseConsumerID(id string) (stream string, consumer string, err error) {
 	return matches[1], matches[2], nil
 }
 
+func validateCompressionTypeString() schema.SchemaValidateFunc {
+	return validation.StringInSlice([]string{"none", "s2"}, false)
+}
+
 func validateRetentionTypeString() schema.SchemaValidateFunc {
 	return validation.StringInSlice([]string{"limits", "interest", "workqueue"}, false)
 }
@@ -202,6 +206,14 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 
 	if limit := d.Get("max_msgs_per_subject"); limit != nil {
 		stream.MaxMsgsPer = int64(limit.(int))
+	}
+
+	compression := d.Get("compression")
+	switch compression {
+	case "none":
+		stream.Compression = api.NoCompression
+	case "s2":
+		stream.Compression = api.S2Compression
 	}
 
 	mirror, ok := d.GetOk("mirror")

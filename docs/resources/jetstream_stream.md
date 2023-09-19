@@ -45,6 +45,7 @@ Above the `ORDERS_ARCHIVE` stream is a mirror of `ORDERS`, valid options for spe
  * `max_age` - (optional) The maximum oldest message that can be kept in the stream, duration specified in seconds (number)
  * `max_bytes` - (optional) The maximum size of all messages that can be kept in the stream (number)
  * `max_consumers` - (optional) Number of consumers this stream allows (number)
+ * `compression` - (optional) Enable stream compression by setting the value to `s2`
  * `max_msg_size` - (optional) The maximum individual message size that the stream will accept (number)
  * `max_msgs` - (optional) The maximum amount of messages that can be kept in the stream (number)
  * `max_msgs_per_subject` (optional) The maximum amount of messages that can be kept in the stream on a per-subject basis (number)
