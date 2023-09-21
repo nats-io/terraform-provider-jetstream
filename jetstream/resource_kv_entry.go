@@ -93,10 +93,18 @@ func resourceKVEntryRead(d *schema.ResourceData, m any) error {
 	}
 	kv, err := js.KeyValue(bucket)
 	if err != nil {
+		if err == nats.ErrBucketNotFound {
+			d.SetId("")
+			return nil
+		}
 		return err
 	}
 	entry, err := kv.Get(key)
 	if err != nil {
+		if err == nats.ErrKeyNotFound {
+			d.SetId("")
+			return nil
+		}
 		return err
 	}
 

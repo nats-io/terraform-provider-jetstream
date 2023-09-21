@@ -172,6 +172,10 @@ func resourceKVBucketRead(d *schema.ResourceData, m any) error {
 	}
 	bucket, err := js.KeyValue(name)
 	if err != nil {
+		if err == nats.ErrBucketNotFound {
+			d.SetId("")
+			return nil
+		}
 		return err
 	}
 	status, err := bucket.Status()
