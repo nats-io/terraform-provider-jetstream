@@ -419,6 +419,25 @@ func resourceConsumerUpdate(d *schema.ResourceData, m any) error {
 	return resourceConsumerRead(d, m)
 }
 
+func checkConsumerOnLimitsStream(mgr *jsm.Manager, streamName string, cfg *api.ConsumerConfig) error {
+	stream, err := mgr.LoadStream(streamName)
+	if err != nil {
+		return err
+	}
+
+	if stream.ConsumerLimits().InactiveThreshold > 0 || stream.ConsumerLimits().MaxAckPending > 0 {
+		if cfg.InactiveThreshold == 0 {
+			return fmt.Errorf("inactive_threshold is required on streams with consumer limits set")
+		}
+
+		if cfg.MaxAckPending == 0 {
+			return fmt.Errorf("inactive_threshold is required on streams with consumer limits set")
+		}
+	}
+
+	return nil
+}
+
 func resourceConsumerCreate(d *schema.ResourceData, m any) error {
 	cfg, err := consumerConfigFromResourceData(d)
 	if err != nil {
@@ -435,6 +454,11 @@ func resourceConsumerCreate(d *schema.ResourceData, m any) error {
 		return err
 	}
 	defer nc.Close()
+
+	err = checkConsumerOnLimitsStream(mgr, stream, &cfg)
+	if err != nil {
+		return err
+	}
 
 	_, err = mgr.NewConsumerFromDefault(stream, cfg)
 	if err != nil {

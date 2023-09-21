@@ -5,10 +5,10 @@ go 1.20
 require (
 	github.com/google/go-cmp v0.5.9
 	github.com/hashicorp/terraform-plugin-sdk v1.17.2
-	github.com/nats-io/jsm.go v0.0.36-0.20230919135355-c609acc39d33
+	github.com/nats-io/jsm.go v0.1.1-0.20230921074448-1bbb5650afc8
 	github.com/nats-io/jwt/v2 v2.5.2
-	github.com/nats-io/nats-server/v2 v2.9.23-0.20230918205325-3dc06278119c
-	github.com/nats-io/nats.go v1.29.0
+	github.com/nats-io/nats-server/v2 v2.10.1
+	github.com/nats-io/nats.go v1.30.0
 	github.com/xeipuuv/gojsonschema v1.2.0
 )
 
@@ -21,7 +21,7 @@ require (
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
 	github.com/agext/levenshtein v1.2.2 // indirect
-	github.com/antonmedv/expr v1.15.2 // indirect
+	github.com/antonmedv/expr v1.15.3 // indirect
 	github.com/apparentlymart/go-cidr v1.1.0 // indirect
 	github.com/apparentlymart/go-textseg/v12 v12.0.0 // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
