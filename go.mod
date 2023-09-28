@@ -5,10 +5,10 @@ go 1.20
 require (
 	github.com/google/go-cmp v0.5.9
 	github.com/hashicorp/terraform-plugin-sdk v1.17.2
-	github.com/nats-io/jsm.go v0.1.1-0.20230921074448-1bbb5650afc8
+	github.com/nats-io/jsm.go v0.1.1-0.20230926103807-a54fd61d399d
 	github.com/nats-io/jwt/v2 v2.5.2
 	github.com/nats-io/nats-server/v2 v2.10.1
-	github.com/nats-io/nats.go v1.30.0
+	github.com/nats-io/nats.go v1.30.2
 	github.com/xeipuuv/gojsonschema v1.2.0
 )
 

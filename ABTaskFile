@@ -1,0 +1,126 @@
+# Install https://choria-io.github.io/appbuilder/ and run `abt` to use this file
+
+name: build_tasks
+description: NATS Developer Commands
+
+commands:
+    - name: dependencies
+      type: parent
+      description: Manage dependencies
+      aliases: [d]
+      commands:
+        - name: update
+          description: Update dependencies
+          type: exec
+          aliases: [up]
+          flags:
+            - name: verbose
+              description: Log verbosely
+              bool: true
+          script: |
+            . "{{ BashHelperPath }}"
+
+            ab_announce Updating all dependencies
+            
+            go get -u -n -a -t {{- if .Flags.verbose }} -d -x {{ end }} ./...
+
+            go mod tidy
+
+    - name: test
+      type: parent
+      aliases: [t]
+      description: Perform various tests
+      commands:
+        - name: unit
+          type: exec
+          description: Run unit tests
+          aliases: [u]
+          dir: "{{ AppDir }}"
+          environment:
+            - "TF_ACC=1"
+          script: go test -v --failfast -p=1 ./...
+
+        - name: lint
+          type: exec
+          dir: "{{ AppDir }}"
+          flags:
+            - name: vet
+              description: Perform go vet
+              bool: true
+              default: true
+            - name: staticcheck
+              description: Perform staticcheck
+              bool: true
+              default: true
+            - name: update
+              description: Updates lint dependencies
+              bool: true
+          script: |
+            set -e
+            
+            . "{{ BashHelperPath }}"
+            
+            {{ if .Flags.update }}
+              ab_say Updating linting tools
+              go install github.com/client9/misspell/cmd/misspell@latest
+              go install honnef.co/go/tools/cmd/staticcheck@latest
+            {{ else }}
+              echo ">>> Run with --update to install required commands"
+              echo
+            {{ end }}
+            
+            ab_say Formatting source files
+            go fmt ./...
+            
+            ab_say Tidying go mod
+            go mod tidy
+
+            ab_say Checking spelling
+            find . -type f -name "*.go" | xargs misspell -error -locale US
+            
+            {{ if .Flags.vet }}
+            ab_say Performing go vet
+            go vet ./...
+            {{ end }}
+            
+            {{ if .Flags.staticcheck }}
+            ab_say Running staticcheck
+            staticcheck ./...
+            {{ end }}
+
+    - name: build
+      type: parent
+      aliases: [b]
+      description: Code build steps
+      commands:
+        - name: binary
+          aliases: [bin]
+          description: Build a basic test binary
+          type: exec
+          dir: "{{ TaskDir }}/nats"
+          banner: |
+              >>>
+              >>> Building 'nats' locally {{ if .Flags.target }}for target '{{ .Flags.target }}'{{ end }}
+              >>>
+          flags:
+            - name: target
+              description: Target platform to build for
+              enum: ["linux/amd64"]
+              short: T
+          script: |
+            {{ if eq .Flags.target "linux/amd64" }}
+                export GOOS=linux
+                export GOARCH=amd64
+            {{ end }}
+
+            go build -o nats
+
+            ls -l nats
+
+        - name: snapshot
+          description: Goreleaser snapshot
+          aliases: [snap]
+          type: exec
+          dir: "{{ TaskDir }}"
+          script: |
+            goreleaser release --snapshot --clean

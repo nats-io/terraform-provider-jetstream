@@ -59,6 +59,75 @@ func testStreamHasSubjects(t *testing.T, mgr *jsm.Manager, stream string, subjec
 	}
 }
 
+func testStreamIsMirrorTransformed(t *testing.T, mgr *jsm.Manager, stream string, transforms ...api.SubjectTransformConfig) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		str, err := mgr.LoadStream(stream)
+		if err != nil {
+			return err
+		}
+
+		if !str.IsMirror() {
+			return fmt.Errorf("stream is not a mirror")
+		}
+
+		mirror := str.Mirror()
+
+		for i, trans := range transforms {
+			if len(mirror.SubjectTransforms) == 0 || len(mirror.SubjectTransforms) < i {
+				return fmt.Errorf("transform %v does not match %v", mirror.SubjectTransforms, trans)
+			}
+			if mirror.SubjectTransforms[i].Source != trans.Source {
+				return fmt.Errorf("transform %v does not match %v", mirror.SubjectTransforms[i], trans)
+			}
+			if mirror.SubjectTransforms[i].Destination != trans.Destination {
+				return fmt.Errorf("transform %v does not match %v", mirror.SubjectTransforms[i], trans)
+			}
+		}
+
+		return nil
+	}
+}
+
+func testStreamIsSourceTransformed(t *testing.T, mgr *jsm.Manager, stream string, sourceName string, transforms ...api.SubjectTransformConfig) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		str, err := mgr.LoadStream(stream)
+		if err != nil {
+			return err
+		}
+
+		if !str.IsSourced() {
+			return fmt.Errorf("stream is not sourced")
+		}
+
+		var source *api.StreamSource
+
+		for _, s := range str.Sources() {
+			if s.Name == sourceName {
+				source = s
+				break
+			}
+		}
+
+		if source == nil {
+			return fmt.Errorf("source not found")
+		}
+
+		for i, trans := range transforms {
+			if len(source.SubjectTransforms) == 0 || len(source.SubjectTransforms) < i {
+				return fmt.Errorf("transform %v does not match %v", source.SubjectTransforms, trans)
+			}
+			if source.SubjectTransforms[i].Source != trans.Source {
+				return fmt.Errorf("transform %v does not match %v", source.SubjectTransforms[i], trans)
+			}
+			if source.SubjectTransforms[i].Destination != trans.Destination {
+				return fmt.Errorf("transform %v does not match %v", source.SubjectTransforms[i], trans)
+			}
+		}
+
+		return nil
+	}
+}
+
 func testStreamIsSourceOf(t *testing.T, mgr *jsm.Manager, stream string, sources []string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		str, err := mgr.LoadStream(stream)
