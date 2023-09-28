@@ -112,6 +112,17 @@ func streamSourceFromResourceData(d any) ([]*api.StreamSource, error) {
 			}
 		}
 
+		transforms := s["subject_transform"].([]any)
+		if len(transforms) > 0 {
+			for _, transform := range transforms {
+				st := transform.(map[string]any)
+				source.SubjectTransforms = append(source.SubjectTransforms, api.SubjectTransformConfig{
+					Source:      st["source"].(string),
+					Destination: st["destination"].(string),
+				})
+			}
+		}
+
 		res = append(res, source)
 	}
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
 	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 )
 
@@ -61,6 +62,74 @@ resource "jetstream_stream" "test" {
 }
 `
 
+const typeStreamConfigMirrorTransformed = `
+provider "jetstream" {
+	servers = "%s"
+}
+
+resource "jetstream_stream" "other" {
+	name = "OTHER"
+	subjects = ["js.in.OTHER.>"]
+}
+
+resource "jetstream_stream" "mirror_transform_test" {
+	name = "MIRROR_TRANSFORM_TEST"
+    description = "typeStreamConfigMirrorTransformed"
+	mirror {
+		name = "OTHER"
+		start_seq = 11
+
+		subject_transform {
+			source = "js.in.OTHER.1.>"
+			destination = "1.>"
+		}
+
+		subject_transform {
+			source = "js.in.OTHER.2.>"
+			destination = "2.>"
+		}
+	}
+}
+`
+
+const typeStreamConfigSourcesTransformed = `
+provider "jetstream" {
+	servers = "%s"
+}
+
+resource "jetstream_stream" "other1" {
+	name = "OTHER1"
+	subjects = ["js.in.OTHER1.>"]
+}
+
+resource "jetstream_stream" "other2" {
+	name = "OTHER2"
+	subjects = ["js.in.OTHER2.>"]
+}
+
+resource "jetstream_stream" "source_transform_test" {
+	name = "SOURCE_TRANSFORM_TEST"
+    description = "typeStreamConfigSourcesTransformed"
+	source {
+		name = "OTHER1"
+
+		subject_transform {
+			source = "js.in.OTHER1.>"
+			destination = "1.>"
+		}
+	}
+
+	source {
+		name = "OTHER2"
+
+		subject_transform {
+			source = "js.in.OTHER2.>"
+			destination = "2.>"
+		}
+	}
+}
+`
+
 const testStreamConfigSources = `
 provider "jetstream" {
 	servers = "%s"
@@ -106,8 +175,12 @@ func TestResourceStream(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		Providers:    testJsProviders,
-		CheckDestroy: testStreamDoesNotExist(t, mgr, "TEST"),
+		Providers: testJsProviders,
+		CheckDestroy: resource.ComposeTestCheckFunc(
+			testStreamDoesNotExist(t, mgr, "TEST"),
+			testStreamDoesNotExist(t, mgr, "OTHER"),
+			testStreamDoesNotExist(t, mgr, "OTHER1"),
+			testStreamDoesNotExist(t, mgr, "OTHER2")),
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(testStreamConfigBasic, nc.ConnectedUrl()),
@@ -143,6 +216,37 @@ func TestResourceStream(t *testing.T) {
 					resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.external.0.deliver", "js.deliver.ext"),
 					testStreamIsMirrorOf(t, mgr, "TEST", "OTHER"),
 					testStreamHasSubjects(t, mgr, "TEST", []string{}),
+				),
+			},
+			{
+				Config: fmt.Sprintf(typeStreamConfigMirrorTransformed, nc.ConnectedUrl()),
+				Check: resource.ComposeTestCheckFunc(
+					testStreamExist(t, mgr, "MIRROR_TRANSFORM_TEST"),
+					resource.TestCheckResourceAttr("jetstream_stream.mirror_transform_test", "mirror.0.name", "OTHER"),
+					resource.TestCheckResourceAttr("jetstream_stream.mirror_transform_test", "mirror.0.start_seq", "11"),
+					resource.TestCheckResourceAttr("jetstream_stream.mirror_transform_test", "mirror.0.subject_transform.0.source", "js.in.OTHER.1.>"),
+					resource.TestCheckResourceAttr("jetstream_stream.mirror_transform_test", "mirror.0.subject_transform.0.destination", "1.>"),
+					resource.TestCheckResourceAttr("jetstream_stream.mirror_transform_test", "mirror.0.subject_transform.1.source", "js.in.OTHER.2.>"),
+					resource.TestCheckResourceAttr("jetstream_stream.mirror_transform_test", "mirror.0.subject_transform.1.destination", "2.>"),
+					testStreamIsMirrorOf(t, mgr, "MIRROR_TRANSFORM_TEST", "OTHER"),
+					testStreamIsMirrorTransformed(t, mgr, "MIRROR_TRANSFORM_TEST", api.SubjectTransformConfig{Source: "js.in.OTHER.1.>", Destination: "1.>"}),
+					testStreamHasSubjects(t, mgr, "MIRROR_TRANSFORM_TEST", []string{}),
+				),
+			},
+			{
+				Config: fmt.Sprintf(typeStreamConfigSourcesTransformed, nc.ConnectedUrl()),
+				Check: resource.ComposeTestCheckFunc(
+					testStreamExist(t, mgr, "SOURCE_TRANSFORM_TEST"),
+					resource.TestCheckResourceAttr("jetstream_stream.source_transform_test", "source.0.name", "OTHER1"),
+					resource.TestCheckResourceAttr("jetstream_stream.source_transform_test", "source.0.subject_transform.0.source", "js.in.OTHER1.>"),
+					resource.TestCheckResourceAttr("jetstream_stream.source_transform_test", "source.0.subject_transform.0.destination", "1.>"),
+					resource.TestCheckResourceAttr("jetstream_stream.source_transform_test", "source.1.name", "OTHER2"),
+					resource.TestCheckResourceAttr("jetstream_stream.source_transform_test", "source.1.subject_transform.0.source", "js.in.OTHER2.>"),
+					resource.TestCheckResourceAttr("jetstream_stream.source_transform_test", "source.1.subject_transform.0.destination", "2.>"),
+					testStreamIsSourceOf(t, mgr, "SOURCE_TRANSFORM_TEST", []string{"OTHER1", "OTHER2"}),
+					testStreamIsSourceTransformed(t, mgr, "SOURCE_TRANSFORM_TEST", "OTHER1", api.SubjectTransformConfig{Source: "js.in.OTHER1.>", Destination: "1.>"}),
+					testStreamIsSourceTransformed(t, mgr, "SOURCE_TRANSFORM_TEST", "OTHER2", api.SubjectTransformConfig{Source: "js.in.OTHER2.>", Destination: "2.>"}),
+					testStreamHasSubjects(t, mgr, "SOURCE_TRANSFORM_TEST", []string{}),
 				),
 			},
 			{

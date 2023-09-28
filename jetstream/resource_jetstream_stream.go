@@ -12,6 +12,19 @@ import (
 )
 
 func resourceStream() *schema.Resource {
+	subjectTransform := map[string]*schema.Schema{
+		"source": {
+			Type:        schema.TypeString,
+			Description: "The subject transform source",
+			Required:    true,
+		},
+		"destination": {
+			Type:        schema.TypeString,
+			Description: "The subject transform destination",
+			Required:    true,
+		},
+	}
+
 	sourceInfo := map[string]*schema.Schema{
 		"name": {
 			Type:        schema.TypeString,
@@ -33,6 +46,14 @@ func resourceStream() *schema.Resource {
 			Type:        schema.TypeString,
 			Description: "Only copy messages matching a specific subject, not usable for mirrors",
 			Optional:    true,
+		},
+		"subject_transform": {
+			Type:        schema.TypeList,
+			Description: "The subject filtering sources and associated destination transforms",
+			Optional:    true,
+			ForceNew:    false,
+			Required:    false,
+			Elem:        &schema.Resource{Schema: subjectTransform},
 		},
 		"external": {
 			Type:        schema.TypeList,
@@ -225,6 +246,15 @@ func resourceStream() *schema.Resource {
 					Type: schema.TypeString,
 				},
 			},
+			"subject_transform": {
+				Type:        schema.TypeList,
+				Description: "Subject transform to apply to matching messages",
+				MaxItems:    1,
+				ForceNew:    false,
+				Required:    false,
+				Optional:    true,
+				Elem:        &schema.Resource{Schema: subjectTransform},
+			},
 			"mirror": {
 				Type:        schema.TypeList,
 				Description: "Specifies a remote stream to mirror into this one",
@@ -382,6 +412,10 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 			d.Set("mirror.0.external.api", mirror.External.ApiPrefix)
 			d.Set("mirror.0.external.deliver", mirror.External.DeliverPrefix)
 		}
+		for c, v := range mirror.SubjectTransforms {
+			d.Set(fmt.Sprintf("mirror.0.subject_transforms.%d.src", c), v.Source)
+			d.Set(fmt.Sprintf("mirror.0.subject_transforms.%d.dest", c), v.Destination)
+		}
 	}
 
 	if str.IsSourced() {
@@ -393,8 +427,12 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 				d.Set(fmt.Sprintf("source.%d.start_time", i), source.OptStartTime.Format(time.RFC3339))
 			}
 			if source.External != nil {
-				d.Set(fmt.Sprintf("mirror.%d.external.api", i), source.External.ApiPrefix)
-				d.Set(fmt.Sprintf("mirror.%d.external.deliver", i), source.External.DeliverPrefix)
+				d.Set(fmt.Sprintf("source.%d.external.api", i), source.External.ApiPrefix)
+				d.Set(fmt.Sprintf("source.%d.external.deliver", i), source.External.DeliverPrefix)
+			}
+			for c, v := range source.SubjectTransforms {
+				d.Set(fmt.Sprintf("source.%d.subject_transforms.%d.src", i, c), v.Source)
+				d.Set(fmt.Sprintf("source.%d.subject_transforms.%d.dest", i, c), v.Destination)
 			}
 		}
 	}
