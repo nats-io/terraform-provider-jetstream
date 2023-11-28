@@ -49,6 +49,7 @@ resource "jetstream_consumer" "TEST_C2" {
   durable_name    = "C2"
   stream_sequence = 10
   max_ack_pending = 20
+  filter_subjects = ["TEST.a", "TEST.b"]
 }
 `
 
@@ -101,6 +102,7 @@ func TestResourceConsumer(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					testStreamExist(t, mgr, "TEST"),
 					testConsumerExist(t, mgr, "TEST", "C2"),
+					testConsumerHasFilterSubjects(t, mgr, "TEST", "C2", []string{"TEST.a", "TEST.b"}),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C2", "stream_sequence", "10"),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C2", "max_ack_pending", "20"),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C2", "inactive_threshold", "0"),

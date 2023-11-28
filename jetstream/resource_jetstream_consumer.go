@@ -137,6 +137,13 @@ func resourceConsumer() *schema.Resource {
 				Optional:    true,
 				ForceNew:    false,
 			},
+			"filter_subjects": {
+				Type:        schema.TypeList,
+				Description: "Only receive a subset of messages from the stream baseed on the subjects they entered the Streeam on. Only works with nats-server v2.10+",
+				Optional:    true,
+				ForceNew:    false,
+				Elem:        &schema.Schema{Type: schema.TypeString},
+			},
 			"replay_policy": {
 				Type:         schema.TypeString,
 				Description:  "The rate at which messages will be replayed from the stream",
@@ -327,6 +334,16 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 		cfg.AckPolicy = api.AckNone
 	}
 
+	fs, ok := d.GetOk("filter_subjects")
+	if ok {
+		ar := fs.([]any)
+		var subjects = make([]string, len(ar))
+		for i, v := range ar {
+			subjects[i] = v.(string)
+		}
+		cfg.FilterSubjects = subjects
+	}
+
 	m, ok := d.GetOk("metadata")
 	if ok {
 		mt, ok := m.(map[string]any)
@@ -513,6 +530,7 @@ func resourceConsumerRead(d *schema.ResourceData, m any) error {
 	d.Set("ack_wait", cons.AckWait().Seconds())
 	d.Set("max_delivery", cons.MaxDeliver())
 	d.Set("filter_subject", cons.FilterSubject())
+	d.Set("filter_subjects", cons.FilterSubjects())
 	d.Set("stream_sequence", 0)
 	d.Set("start_time", "")
 	d.Set("ratelimit", cons.RateLimit())
