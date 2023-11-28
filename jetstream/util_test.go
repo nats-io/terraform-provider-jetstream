@@ -42,7 +42,7 @@ func testConsumerHasMetadata(t *testing.T, mgr *jsm.Manager, stream string, cons
 }
 
 func testConsumerHasFilterSubjects(t *testing.T, mgr *jsm.Manager, stream string, consumer string, subjects []string) resource.TestCheckFunc {
-	return func(s* terraform.State) error {
+	return func(s *terraform.State) error {
 		cons, err := mgr.LoadConsumer(stream, consumer)
 		if err != nil {
 			return err
