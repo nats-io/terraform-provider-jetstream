@@ -187,7 +187,7 @@ resource "jetstream_consumer" "ORDERS_NEW" {
  * `delivery_group` - (optional) When set Push consumers will only deliver messages to subscriptions with this group set
  * `durable_name` - The durable name of the Consumer
  * `filter_subject` - (optional) Only receive a subset of messages from the Stream based on the subject they entered the Stream on
- * `filter_subjects` - (optional) Only receive a subset tof messages from the Stream based on subjects they entered the Stream on. Only works with v2.10 or better.
+ * `filter_subjects` - (optional) Only receive a subset tof messages from the Stream based on subjects they entered the Stream on. This is exclusive to `filter_subject`. Only works with v2.10 or better.
  * `max_delivery` - (optional) Maximum deliveries to attempt for each message
  * `replay_policy` - (optional) The rate at which messages will be replayed from the stream
  * `sample_freq` - (optional) The percentage of acknowledgements that will be sampled for observability purposes

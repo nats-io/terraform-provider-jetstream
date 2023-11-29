@@ -136,10 +136,11 @@ func resourceConsumer() *schema.Resource {
 				Default:     "",
 				Optional:    true,
 				ForceNew:    false,
+				ConflictsWith: []string{"filter_subjects"},
 			},
 			"filter_subjects": {
 				Type:        schema.TypeList,
-				Description: "Only receive a subset of messages from the stream baseed on the subjects they entered the Streeam on. Only works with nats-server v2.10+",
+				Description: "Only receive a subset of messages from the stream baseed on the subjects they entered the Streeam on, exlusive to filter_subject and works with nats-server v2.10 or better",
 				Optional:    true,
 				ForceNew:    false,
 				Elem:        &schema.Schema{Type: schema.TypeString},
@@ -336,12 +337,18 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 
 	fs, ok := d.GetOk("filter_subjects")
 	if ok {
-		ar := fs.([]any)
-		var subjects = make([]string, len(ar))
-		for i, v := range ar {
-			subjects[i] = v.(string)
+		ns := fs.([]any)
+		if len(ns) == 1 {
+			cfg.FilterSubject = ns[0].(string)
+			cfg.FilterSubjects = nil
+		} else if len(ns) > 1 {
+			var subjects = make([]string, len(ns))
+			for i, v := range ns {
+				subjects[i] = v.(string)
+			}
+			cfg.FilterSubjects = subjects
+			cfg.FilterSubject = ""
 		}
-		cfg.FilterSubjects = subjects
 	}
 
 	m, ok := d.GetOk("metadata")
@@ -415,6 +422,8 @@ func resourceConsumerUpdate(d *schema.ResourceData, m any) error {
 	opts := []jsm.ConsumerOption{
 		jsm.ConsumerDescription(cfg.Description),
 		jsm.ConsumerMetadata(cfg.Metadata),
+		jsm.FilterStreamBySubject(cfg.FilterSubject),
+		jsm.FilterStreamBySubject(cfg.FilterSubjects...),
 		jsm.AckWait(cfg.AckWait),
 		jsm.MaxDeliveryAttempts(cfg.MaxDeliver),
 		jsm.SamplePercent(freq),
