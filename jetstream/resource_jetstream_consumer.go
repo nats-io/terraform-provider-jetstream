@@ -131,11 +131,11 @@ func resourceConsumer() *schema.Resource {
 				ForceNew:    false,
 			},
 			"filter_subject": {
-				Type:        schema.TypeString,
-				Description: "Only receive a subset of messages from the Stream based on the subject they entered the Stream on",
-				Default:     "",
-				Optional:    true,
-				ForceNew:    false,
+				Type:          schema.TypeString,
+				Description:   "Only receive a subset of messages from the Stream based on the subject they entered the Stream on",
+				Default:       "",
+				Optional:      true,
+				ForceNew:      false,
 				ConflictsWith: []string{"filter_subjects"},
 			},
 			"filter_subjects": {

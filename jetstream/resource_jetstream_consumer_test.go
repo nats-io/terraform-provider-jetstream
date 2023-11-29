@@ -136,7 +136,6 @@ func TestResourceConsumer(t *testing.T) {
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C3", "filter_subject", "TEST.a"),
 				),
 			},
-
 		},
 	})
 }
