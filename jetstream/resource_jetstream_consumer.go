@@ -131,11 +131,19 @@ func resourceConsumer() *schema.Resource {
 				ForceNew:    false,
 			},
 			"filter_subject": {
-				Type:        schema.TypeString,
-				Description: "Only receive a subset of messages from the Stream based on the subject they entered the Stream on",
-				Default:     "",
+				Type:          schema.TypeString,
+				Description:   "Only receive a subset of messages from the Stream based on the subject they entered the Stream on",
+				Default:       "",
+				Optional:      true,
+				ForceNew:      false,
+				ConflictsWith: []string{"filter_subjects"},
+			},
+			"filter_subjects": {
+				Type:        schema.TypeList,
+				Description: "Only receive a subset of messages from the stream baseed on the subjects they entered the Streeam on, exlusive to filter_subject and works with nats-server v2.10 or better",
 				Optional:    true,
 				ForceNew:    false,
+				Elem:        &schema.Schema{Type: schema.TypeString},
 			},
 			"replay_policy": {
 				Type:         schema.TypeString,
@@ -327,6 +335,22 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 		cfg.AckPolicy = api.AckNone
 	}
 
+	fs, ok := d.GetOk("filter_subjects")
+	if ok {
+		ns := fs.([]any)
+		if len(ns) == 1 {
+			cfg.FilterSubject = ns[0].(string)
+			cfg.FilterSubjects = nil
+		} else if len(ns) > 1 {
+			var subjects = make([]string, len(ns))
+			for i, v := range ns {
+				subjects[i] = v.(string)
+			}
+			cfg.FilterSubjects = subjects
+			cfg.FilterSubject = ""
+		}
+	}
+
 	m, ok := d.GetOk("metadata")
 	if ok {
 		mt, ok := m.(map[string]any)
@@ -398,6 +422,8 @@ func resourceConsumerUpdate(d *schema.ResourceData, m any) error {
 	opts := []jsm.ConsumerOption{
 		jsm.ConsumerDescription(cfg.Description),
 		jsm.ConsumerMetadata(cfg.Metadata),
+		jsm.FilterStreamBySubject(cfg.FilterSubject),
+		jsm.FilterStreamBySubject(cfg.FilterSubjects...),
 		jsm.AckWait(cfg.AckWait),
 		jsm.MaxDeliveryAttempts(cfg.MaxDeliver),
 		jsm.SamplePercent(freq),
@@ -513,6 +539,7 @@ func resourceConsumerRead(d *schema.ResourceData, m any) error {
 	d.Set("ack_wait", cons.AckWait().Seconds())
 	d.Set("max_delivery", cons.MaxDeliver())
 	d.Set("filter_subject", cons.FilterSubject())
+	d.Set("filter_subjects", cons.FilterSubjects())
 	d.Set("stream_sequence", 0)
 	d.Set("start_time", "")
 	d.Set("ratelimit", cons.RateLimit())

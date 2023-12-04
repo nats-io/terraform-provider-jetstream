@@ -49,6 +49,26 @@ resource "jetstream_consumer" "TEST_C2" {
   durable_name    = "C2"
   stream_sequence = 10
   max_ack_pending = 20
+  filter_subjects = ["TEST.a", "TEST.b"]
+}
+`
+
+const testConsumerConfig_singleSubject = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_stream" "test" {
+  name     = "TEST"
+  subjects = ["TEST.*"]
+}
+
+resource "jetstream_consumer" "TEST_C3" {
+  stream_id       = jetstream_stream.test.id
+  durable_name    = "C3"
+  stream_sequence = 10
+  max_ack_pending = 20
+  filter_subject = "TEST.a"
 }
 `
 
@@ -101,9 +121,19 @@ func TestResourceConsumer(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					testStreamExist(t, mgr, "TEST"),
 					testConsumerExist(t, mgr, "TEST", "C2"),
+					testConsumerHasFilterSubjects(t, mgr, "TEST", "C2", []string{"TEST.a", "TEST.b"}),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C2", "stream_sequence", "10"),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C2", "max_ack_pending", "20"),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C2", "inactive_threshold", "0"),
+				),
+			},
+			{
+				Config: fmt.Sprintf(testConsumerConfig_singleSubject, nc.ConnectedUrl()),
+				Check: resource.ComposeTestCheckFunc(
+					testStreamExist(t, mgr, "TEST"),
+					testConsumerExist(t, mgr, "TEST", "C3"),
+					testConsumerHasFilterSubjects(t, mgr, "TEST", "C3", []string{}),
+					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C3", "filter_subject", "TEST.a"),
 				),
 			},
 		},
