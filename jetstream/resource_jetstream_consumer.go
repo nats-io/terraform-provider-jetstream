@@ -457,7 +457,7 @@ func checkConsumerOnLimitsStream(mgr *jsm.Manager, streamName string, cfg *api.C
 		}
 
 		if cfg.MaxAckPending == 0 {
-			return fmt.Errorf("inactive_threshold is required on streams with consumer limits set")
+			return fmt.Errorf("max_ack_pending is required on streams with consumer limits set")
 		}
 	}
 
