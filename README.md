@@ -1,5 +1,7 @@
 This is a work in progress Terraform Provider to manage NATS JetStream.
 
+**DEPRECATION NOTICE: This project will be deprecated after the next released is published in December 2023 and will not receive further updates.**
+
 ## Installation
 
 When using Terraform 0.13 or newer adding the `provider` and running `terraform init` will download the provider from the [Terraform Registry](https://registry.terraform.io/providers/nats-io/jetstream/latest/docs).
