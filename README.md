@@ -1,6 +1,6 @@
 This is a work in progress Terraform Provider to manage NATS JetStream.
 
-**DEPRECATION NOTICE: This project will be deprecated after the next released is published in December 2023 and will not receive further updates.**
+**DEPRECATION NOTICE: This project will be deprecated after release 0.1.1 and will receive only bug fixes and security updates going forward**
 
 ## Installation
 
