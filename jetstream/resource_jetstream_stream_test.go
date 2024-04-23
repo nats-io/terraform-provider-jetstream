@@ -281,6 +281,7 @@ func TestResourceStream(t *testing.T) {
 					resource.TestCheckResourceAttr("jetstream_stream.test", "subject_transform.0.source", "TEST.>"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "subject_transform.0.destination", "1.>"),
 					testStreamHasSubjects(t, mgr, "TEST", []string{"TEST.*"}),
+					testStreamIsTransformed(t, mgr, "TEST", api.SubjectTransformConfig{Source: "TEST.>", Destination: "1.>"}),
 				),
 			},
 		},

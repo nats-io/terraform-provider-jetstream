@@ -273,3 +273,20 @@ func testConsumerDoesNotExist(t *testing.T, mgr *jsm.Manager, stream string, con
 		return nil
 	}
 }
+
+//func testStreamIsTransformed
+
+func testStreamIsTransformed(t *testing.T, mgr *jsm.Manager, stream string, transform api.SubjectTransformConfig) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		str, err := mgr.LoadStream(stream)
+		if err != nil {
+			return err
+		}
+
+		if *str.Configuration().SubjectTransform != transform {
+			return fmt.Errorf("subject transform %v does not match %v", *str.Configuration().SubjectTransform, transform)
+		}
+
+		return nil
+	}
+}
