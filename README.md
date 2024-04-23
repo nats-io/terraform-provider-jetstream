@@ -123,6 +123,16 @@ resource "jetstream_stream" "ORDERS" {
   storage  = "file"
   max_age  = 60 * 60 * 24 * 365
 }
+
+resource "jetstream_stream" "TRANSFORM" {
+  name     = "TRANSFORM"
+  subjects = ["TRANSFORM.*"]
+  storage  = "file"
+  subject_transform {
+    source      = "TRANSFORM.>"
+    destination = "NEWSUBJECT.>"
+  }
+}
 ```
 
 ### Attribute Reference
@@ -151,6 +161,7 @@ resource "jetstream_stream" "ORDERS" {
  * `deny_purge` - (optional) Restricts the ability to purge messages from a stream via the API. Cannot be change once set to true (bool)
  * `allow_rollup_hdrs` - (optional) Allows the use of the Nats-Rollup header to replace all contents of a stream, or subject in a stream, with a single new message (bool)
  * `allow_direct` - (optional) Allow higher performance, direct access to get individual messages via the $JS.DS.GET API (bool)
+ * `subject_transform` - (optional) A map of source and destination subjects to transform.
 
 ## jetstream_consumer
 
