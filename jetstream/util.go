@@ -163,6 +163,19 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		subjects[i] = sub.(string)
 	}
 
+	var subjectTransforms *api.SubjectTransformConfig
+	transforms := d.Get("subject_transform").([]any)
+
+	if len(transforms) > 0 {
+		for _, transform := range transforms {
+			st := transform.(map[string]any)
+			subjectTransforms = &api.SubjectTransformConfig{
+				Source:      st["source"].(string),
+				Destination: st["destination"].(string),
+			}
+		}
+	}
+
 	var placement *api.Placement
 	c, ok := d.GetOk("placement_cluster")
 	if ok {
@@ -179,25 +192,26 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 	}
 
 	stream := api.StreamConfig{
-		Name:          d.Get("name").(string),
-		Subjects:      subjects,
-		Retention:     retention,
-		Discard:       discard,
-		DiscardNewPer: d.Get("discard_new_per_subject").(bool),
-		MaxConsumers:  d.Get("max_consumers").(int),
-		MaxMsgs:       int64(d.Get("max_msgs").(int)),
-		MaxBytes:      int64(d.Get("max_bytes").(int)),
-		MaxAge:        time.Second * time.Duration(d.Get("max_age").(int)),
-		Duplicates:    time.Second * time.Duration(d.Get("duplicate_window").(int)),
-		MaxMsgSize:    int32(d.Get("max_msg_size").(int)),
-		Storage:       storage,
-		Replicas:      d.Get("replicas").(int),
-		NoAck:         !d.Get("ack").(bool),
-		AllowDirect:   d.Get("allow_direct").(bool),
-		DenyDelete:    d.Get("deny_delete").(bool),
-		DenyPurge:     d.Get("deny_purge").(bool),
-		RollupAllowed: d.Get("allow_rollup_hdrs").(bool),
-		Placement:     placement,
+		Name:             d.Get("name").(string),
+		Subjects:         subjects,
+		Retention:        retention,
+		Discard:          discard,
+		DiscardNewPer:    d.Get("discard_new_per_subject").(bool),
+		MaxConsumers:     d.Get("max_consumers").(int),
+		MaxMsgs:          int64(d.Get("max_msgs").(int)),
+		MaxBytes:         int64(d.Get("max_bytes").(int)),
+		MaxAge:           time.Second * time.Duration(d.Get("max_age").(int)),
+		Duplicates:       time.Second * time.Duration(d.Get("duplicate_window").(int)),
+		MaxMsgSize:       int32(d.Get("max_msg_size").(int)),
+		Storage:          storage,
+		Replicas:         d.Get("replicas").(int),
+		NoAck:            !d.Get("ack").(bool),
+		AllowDirect:      d.Get("allow_direct").(bool),
+		DenyDelete:       d.Get("deny_delete").(bool),
+		DenyPurge:        d.Get("deny_purge").(bool),
+		RollupAllowed:    d.Get("allow_rollup_hdrs").(bool),
+		Placement:        placement,
+		SubjectTransform: subjectTransforms,
 	}
 
 	repubSrc := d.Get("republish_source").(string)

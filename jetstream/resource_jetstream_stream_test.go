@@ -159,6 +159,21 @@ resource "jetstream_stream" "test" {
 }
 `
 
+const testStreamSubjectTransform = `
+provider "jetstream" {
+	servers = "%s"
+}
+
+resource "jetstream_stream" "test" {
+	name = "TEST"
+	subjects = ["TEST.*"]
+    subject_transform {
+      source = "TEST.>"
+      destination = "1.>"
+    }
+}
+`
+
 func TestResourceStream(t *testing.T) {
 	srv := createJSServer(t)
 	defer srv.Shutdown()
@@ -257,6 +272,15 @@ func TestResourceStream(t *testing.T) {
 					resource.TestCheckResourceAttr("jetstream_stream.test", "source.1.name", "OTHER2"),
 					testStreamIsSourceOf(t, mgr, "TEST", []string{"OTHER1", "OTHER2"}),
 					testStreamHasSubjects(t, mgr, "TEST", []string{}),
+				),
+			},
+			{
+				Config: fmt.Sprintf(testStreamSubjectTransform, nc.ConnectedUrl()),
+				Check: resource.ComposeTestCheckFunc(
+					testStreamExist(t, mgr, "TEST"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "subject_transform.source", "TEST.>"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "subject_transform.destination", "1.>"),
+					testStreamHasSubjects(t, mgr, "TEST", []string{"TEST.*"}),
 				),
 			},
 		},
