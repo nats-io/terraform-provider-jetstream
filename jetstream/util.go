@@ -166,13 +166,11 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 	var subjectTransforms *api.SubjectTransformConfig
 	transforms := d.Get("subject_transform").([]any)
 
-	if len(transforms) > 0 {
-		for _, transform := range transforms {
-			st := transform.(map[string]any)
-			subjectTransforms = &api.SubjectTransformConfig{
-				Source:      st["source"].(string),
-				Destination: st["destination"].(string),
-			}
+	for _, transform := range transforms {
+		st := transform.(map[string]any)
+		subjectTransforms = &api.SubjectTransformConfig{
+			Source:      st["source"].(string),
+			Destination: st["destination"].(string),
 		}
 	}
 
