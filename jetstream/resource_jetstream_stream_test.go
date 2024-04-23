@@ -167,10 +167,10 @@ provider "jetstream" {
 resource "jetstream_stream" "test" {
 	name = "TEST"
 	subjects = ["TEST.*"]
-    subject_transform {
-      source = "TEST.>"
-      destination = "1.>"
-    }
+	subject_transform {
+		source = "TEST.>"
+		destination = "1.>"
+	}
 }
 `
 
