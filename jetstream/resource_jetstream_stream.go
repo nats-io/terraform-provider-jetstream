@@ -367,6 +367,7 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 	d.Set("allow_direct", str.DirectAllowed())
 	d.Set("discard_new_per_subject", str.DiscardNewPerSubject())
 	d.Set("compression", str.Compression())
+	d.Set("subject_transform", str.Configuration().SubjectTransform)
 
 	if str.MaxAge() == -1 || str.MaxAge() == 0 {
 		d.Set("max_age", "-1")
