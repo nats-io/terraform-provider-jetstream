@@ -1,6 +1,15 @@
 This is a work in progress Terraform Provider to manage NATS JetStream.
 
-**DEPRECATION NOTICE: This project will be deprecated after release 0.1.1 and will receive only bug fixes and security updates going forward**
+> [!WARNING]
+>
+> **DEPRECATION NOTICE: This project will be deprecated after release 0.1.1 and will receive only bug fixes and security updates going forward.**
+>
+> There are two reasons for deprecation:
+>
+> - The primary one is that the NATS server currently has a limitation for supporting declarative-style configuration tools. Specifically, there are some APIs which result in an internal state change that causes the provider state to be implicitly out-of-sync. This is [being addressed in 2.11](https://github.com/nats-io/nats-server/issues/4959)
+> - The secondary reason is that the provider is written using an old version of the Terraform SDK and needs to be updated to be compatible with Terraform 1.18+
+>
+> Once NATS 2.11 is released, the intention is to re-write the provider using the latest Terraform SDK.
 
 ## Installation
 
