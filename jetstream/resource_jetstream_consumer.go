@@ -288,8 +288,9 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 	}
 
 	if cfg.DeliverSubject != "" {
-		cfg.MaxWaiting = d.Get("max_waiting").(int)
 		cfg.DeliverGroup = d.Get("delivery_group").(string)
+	} else {
+		cfg.MaxWaiting = d.Get("max_waiting").(int)
 	}
 
 	for _, d := range d.Get("backoff").([]any) {
