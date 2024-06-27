@@ -28,6 +28,7 @@ resource "jetstream_consumer" "TEST_C1" {
   inactive_threshold = 60
   max_delivery       = 10
   backoff            = [30, 60]
+  max_waiting        = 256
   metadata           = {
     foo = "bar"
   }
@@ -114,6 +115,7 @@ func TestResourceConsumer(t *testing.T) {
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C1", "stream_sequence", "0"),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C1", "description", "new description"),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C1", "inactive_threshold", "60"),
+					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C1", "max_waiting", "256"),
 				),
 			},
 			{
