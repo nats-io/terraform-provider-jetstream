@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
@@ -85,7 +85,7 @@ func resourceStream() *schema.Resource {
 		Update: resourceStreamUpdate,
 		Delete: resourceStreamDelete,
 		Importer: &schema.ResourceImporter{
-			State: schema.ImportStatePassthrough,
+			StateContext: schema.ImportStatePassthroughContext,
 		},
 
 		Schema: map[string]*schema.Schema{
@@ -120,11 +120,11 @@ func resourceStream() *schema.Resource {
 				},
 			},
 			"discard": {
-				Type:         schema.TypeString,
-				Description:  "When a Stream reach it's limits either old messages are deleted or new ones are denied",
-				Optional:     true,
-				Default:      "old",
-				ValidateFunc: validateDiscardPolicy(),
+				Type:             schema.TypeString,
+				Description:      "When a Stream reach it's limits either old messages are deleted or new ones are denied",
+				Optional:         true,
+				Default:          "old",
+				ValidateDiagFunc: validateDiscardPolicy(),
 			},
 			"discard_new_per_subject": {
 				Type:        schema.TypeBool,
@@ -169,12 +169,12 @@ func resourceStream() *schema.Resource {
 				Default:     -1,
 			},
 			"storage": {
-				Type:         schema.TypeString,
-				Description:  "The storage engine to use to back the stream",
-				Default:      "file",
-				ForceNew:     true,
-				Optional:     true,
-				ValidateFunc: validateStorageTypeString(),
+				Type:             schema.TypeString,
+				Description:      "The storage engine to use to back the stream",
+				Default:          "file",
+				ForceNew:         true,
+				Optional:         true,
+				ValidateDiagFunc: validateStorageTypeString(),
 			},
 			"ack": {
 				Type:        schema.TypeBool,
@@ -183,18 +183,18 @@ func resourceStream() *schema.Resource {
 				Default:     true,
 			},
 			"retention": {
-				Type:         schema.TypeString,
-				Description:  "The retention policy to apply over and above max_msgs, max_bytes and max_age",
-				Default:      "limits",
-				Optional:     true,
-				ValidateFunc: validateRetentionTypeString(),
+				Type:             schema.TypeString,
+				Description:      "The retention policy to apply over and above max_msgs, max_bytes and max_age",
+				Default:          "limits",
+				Optional:         true,
+				ValidateDiagFunc: validateRetentionTypeString(),
 			},
 			"compression": {
-				Type:         schema.TypeString,
-				Description:  "Optional compression algorithm used for the Stream",
-				Default:      "none",
-				Optional:     true,
-				ValidateFunc: validateCompressionTypeString(),
+				Type:             schema.TypeString,
+				Description:      "Optional compression algorithm used for the Stream",
+				Default:          "none",
+				Optional:         true,
+				ValidateDiagFunc: validateCompressionTypeString,
 			},
 			"max_consumers": {
 				Type:        schema.TypeInt,
@@ -343,10 +343,11 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 		return fmt.Errorf("could not load stream %q: %s", name, err)
 	}
 
-	maxAge := str.MaxAge().Seconds()
-	if maxAge == 0 {
-		maxAge = -1
+	compressionBytes, err := str.Compression().MarshalJSON()
+	if err != nil {
+		return fmt.Errorf("could not decode compression value %s: %s", str.Compression().String(), err)
 	}
+	compression := string(compressionBytes[1 : len(compressionBytes)-1])
 
 	d.Set("name", str.Name())
 	d.Set("description", str.Description())
@@ -355,7 +356,7 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 	d.Set("max_consumers", str.MaxConsumers())
 	d.Set("max_msgs", int(str.MaxMsgs()))
 	d.Set("max_msgs_per_subject", int(str.MaxMsgsPerSubject()))
-	d.Set("max_age", str.MaxAge().Seconds())
+	d.Set("max_age", int(str.MaxAge().Seconds()))
 	d.Set("duplicate_window", str.DuplicateWindow().Seconds())
 	d.Set("max_bytes", str.MaxBytes())
 	d.Set("max_msg_size", int(str.MaxMsgSize()))
@@ -366,11 +367,16 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 	d.Set("allow_rollup_hdrs", str.RollupAllowed())
 	d.Set("allow_direct", str.DirectAllowed())
 	d.Set("discard_new_per_subject", str.DiscardNewPerSubject())
-	d.Set("compression", str.Compression())
-	d.Set("subject_transform", str.Configuration().SubjectTransform)
+	d.Set("compression", compression)
 
-	if str.MaxAge() == -1 || str.MaxAge() == 0 {
-		d.Set("max_age", "-1")
+	if transform := str.Configuration().SubjectTransform; transform != nil {
+		d.Set("subject_transform", []map[string]string{
+			{
+				"source":      transform.Source,
+				"destination": transform.Destination,
+			},
+		},
+		)
 	}
 
 	switch str.DiscardPolicy() {
@@ -403,39 +409,18 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 
 	if str.IsMirror() {
 		mirror := str.Mirror()
-		d.Set("mirror.0.name", mirror.Name)
-		d.Set("mirror.0.filter_subject", mirror.FilterSubject)
-		d.Set("mirror.0.start_seq", mirror.OptStartSeq)
-		if mirror.OptStartTime != nil {
-			d.Set("mirror.0.start_time", mirror.OptStartTime.Format(time.RFC3339))
+		mirrors := []map[string]any{
+			streamSourceConfigRead(mirror),
 		}
-		if mirror.External != nil {
-			d.Set("mirror.0.external.api", mirror.External.ApiPrefix)
-			d.Set("mirror.0.external.deliver", mirror.External.DeliverPrefix)
-		}
-		for c, v := range mirror.SubjectTransforms {
-			d.Set(fmt.Sprintf("mirror.0.subject_transforms.%d.src", c), v.Source)
-			d.Set(fmt.Sprintf("mirror.0.subject_transforms.%d.dest", c), v.Destination)
-		}
+		d.Set("mirror", mirrors)
 	}
 
 	if str.IsSourced() {
+		sources := make([]map[string]any, len(str.Sources()))
 		for i, source := range str.Sources() {
-			d.Set(fmt.Sprintf("source.%d.name", i), source.Name)
-			d.Set(fmt.Sprintf("source.%d.filter_subject", i), source.FilterSubject)
-			d.Set(fmt.Sprintf("source.%d.start_seq", i), source.OptStartSeq)
-			if source.OptStartTime != nil {
-				d.Set(fmt.Sprintf("source.%d.start_time", i), source.OptStartTime.Format(time.RFC3339))
-			}
-			if source.External != nil {
-				d.Set(fmt.Sprintf("source.%d.external.api", i), source.External.ApiPrefix)
-				d.Set(fmt.Sprintf("source.%d.external.deliver", i), source.External.DeliverPrefix)
-			}
-			for c, v := range source.SubjectTransforms {
-				d.Set(fmt.Sprintf("source.%d.subject_transforms.%d.src", i, c), v.Source)
-				d.Set(fmt.Sprintf("source.%d.subject_transforms.%d.dest", i, c), v.Destination)
-			}
+			sources[i] = streamSourceConfigRead(source)
 		}
+		d.Set("source", sources)
 	}
 
 	if str.IsRepublishing() {
@@ -445,6 +430,39 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 	}
 
 	return nil
+}
+
+func streamSourceConfigRead(source *api.StreamSource) map[string]any {
+	sourceConfig := map[string]any{}
+	sourceConfig["name"] = source.Name
+	sourceConfig["filter_subject"] = source.FilterSubject
+	sourceConfig["start_seq"] = source.OptStartSeq
+
+	if source.OptStartTime != nil {
+		sourceConfig["start_time"] = source.OptStartTime.Format(time.RFC3339)
+	}
+
+	if source.External != nil {
+		sourceConfig["external"] = []map[string]any{
+			{
+				"api":     source.External.ApiPrefix,
+				"deliver": source.External.DeliverPrefix,
+			},
+		}
+	}
+
+	if t := len(source.SubjectTransforms); t > 0 {
+		subjectTransformConfig := make([]map[string]any, t)
+		for c, v := range source.SubjectTransforms {
+			subjectTransformConfig[c] = map[string]any{
+				"source":      v.Source,
+				"destination": v.Destination,
+			}
+		}
+		sourceConfig["subject_transform"] = subjectTransformConfig
+	}
+
+	return sourceConfig
 }
 
 func resourceStreamUpdate(d *schema.ResourceData, m any) error {

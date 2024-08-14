@@ -227,7 +227,7 @@ resource "jetstream_consumer" "ORDERS_NEW" {
  * `inactive_threshold` - (optional) Removes the consumer after a idle period, specified as a duration in seconds
  * `replicas` - (optional) How many replicas of the data to keep in a clustered environment
  * `memory` - (optional) Force the consumer state to be kept in memory rather than inherit the setting from the stream
- * `backoff` - (optional) List of durations in Go format that represents a retry time scale for NaK'd messages. A list of durations in seconds
+ * `backoff` - (optional) List of durations in seconds that represents a retry time scale for NaK'd messages.
  * `republish_source` - (optional) Republish matching messages to `republish_destination`
  * `republish_destination` - (optional) The destination to publish messages to
  * `republish_headers_only` - (optional) Republish only message headers, no bodies

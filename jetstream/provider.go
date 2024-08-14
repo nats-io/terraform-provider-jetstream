@@ -3,8 +3,7 @@ package jetstream
 import (
 	"regexp"
 
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/terraform"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 var streamIdRegex = regexp.MustCompile("^JETSTREAM_STREAM_(.+)$")
@@ -12,7 +11,7 @@ var consumerIdRegex = regexp.MustCompile("^JETSTREAM_STREAM_(.+?)_CONSUMER_(.+)$
 var kvIdRegex = regexp.MustCompile("^JETSTREAM_KV_(.+)$")
 var kvEntryIdRegex = regexp.MustCompile("^JETSTREAM_KV_(.+?)_ENTRY_(.+)$")
 
-func Provider() terraform.ResourceProvider {
+func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
 			"servers": {

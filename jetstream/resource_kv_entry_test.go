@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
-	"github.com/hashicorp/terraform-plugin-sdk/terraform"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
 )
@@ -54,8 +54,8 @@ func TestResourceKVEntry(t *testing.T) {
 	updateBasicConfig := strings.ReplaceAll(testKVEntry_basic, "bar", "baz")
 
 	resource.Test(t, resource.TestCase{
-		Providers:    testJsProviders,
-		CheckDestroy: testEntryDoesNotExist(t, js, "TEST", "foo"),
+		ProviderFactories: testJsProviders,
+		CheckDestroy:      testEntryDoesNotExist(t, js, "TEST", "foo"),
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(testKVEntry_basic, nc.ConnectedUrl()),

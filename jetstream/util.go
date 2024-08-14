@@ -1,19 +1,22 @@
 package jetstream
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
+	"github.com/hashicorp/go-cty/cty"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nats.go"
 
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 var (
@@ -58,20 +61,35 @@ func parseConsumerID(id string) (stream string, consumer string, err error) {
 	return matches[1], matches[2], nil
 }
 
-func validateCompressionTypeString() schema.SchemaValidateFunc {
-	return validation.StringInSlice([]string{"none", "s2"}, false)
+func validateCompressionTypeString(i interface{}, p cty.Path) diag.Diagnostics {
+	compression, _ := i.(string)
+	compression = fmt.Sprintf("\"%s\"", compression)
+	c := new(api.Compression)
+	err := c.UnmarshalJSON([]byte(compression))
+	if err != nil {
+		detail := fmt.Sprintf("Invalid compression type for stream resource: '%s'", compression)
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  "Invalid compression type",
+				Detail:   detail,
+			},
+		}
+	}
+
+	return diag.Diagnostics{}
 }
 
-func validateRetentionTypeString() schema.SchemaValidateFunc {
-	return validation.StringInSlice([]string{"limits", "interest", "workqueue"}, false)
+func validateRetentionTypeString() schema.SchemaValidateDiagFunc {
+	return validation.ToDiagFunc(validation.StringInSlice([]string{"limits", "interest", "workqueue"}, false))
 }
 
-func validateDiscardPolicy() schema.SchemaValidateFunc {
-	return validation.StringInSlice([]string{"old", "new"}, false)
+func validateDiscardPolicy() schema.SchemaValidateDiagFunc {
+	return validation.ToDiagFunc(validation.StringInSlice([]string{"old", "new"}, false))
 }
 
-func validateStorageTypeString() schema.SchemaValidateFunc {
-	return validation.StringInSlice([]string{"file", "memory"}, false)
+func validateStorageTypeString() schema.SchemaValidateDiagFunc {
+	return validation.ToDiagFunc(validation.StringInSlice([]string{"file", "memory"}, false))
 }
 
 func streamSourceFromResourceData(d any) ([]*api.StreamSource, error) {
@@ -287,7 +305,7 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 
 	ok, errs := stream.Validate(new(SchemaValidator))
 	if !ok {
-		return api.StreamConfig{}, fmt.Errorf(strings.Join(errs, ", "))
+		return api.StreamConfig{}, errors.New(strings.Join(errs, ", "))
 	}
 
 	return stream, nil
