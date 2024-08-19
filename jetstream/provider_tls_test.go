@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
 )
@@ -100,7 +100,7 @@ func TestProviderWithTLSFromData(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		Providers: testJsProviders,
+		ProviderFactories: testJsProviders,
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(testTLSConfig_file_data, nc.ConnectedUrl(), caPEM),
@@ -134,7 +134,7 @@ func TestProviderWithTLSFromFile(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		Providers: testJsProviders,
+		ProviderFactories: testJsProviders,
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(testTLSConfig_file, nc.ConnectedUrl(), caFile),
@@ -180,7 +180,7 @@ func TestProviderWithClientTLSFromData(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		Providers: testJsProviders,
+		ProviderFactories: testJsProviders,
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(testClientTLSConfig_file_data, nc.ConnectedUrl(), caPEM, certPEM, keyPEM),
@@ -226,7 +226,7 @@ func TestProviderWithClientTLSFromFile(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		Providers: testJsProviders,
+		ProviderFactories: testJsProviders,
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(testClientTLSConfig_file, nc.ConnectedUrl(), caFile, certFile, keyFile),

@@ -6,21 +6,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/terraform"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/nats-io/nats-server/v2/server"
 )
 
-var testJsProviders map[string]terraform.ResourceProvider
-var testJsProvider *schema.Provider
+var testJsProviders map[string]func() (*schema.Provider, error)
 var caPEM string
 var certPEM string
 var keyPEM string
 
 func init() {
-	testJsProvider = Provider().(*schema.Provider)
-	testJsProviders = map[string]terraform.ResourceProvider{
-		"jetstream": testJsProvider,
+	testJsProviders = map[string]func() (*schema.Provider, error){
+		"jetstream": func() (*schema.Provider, error) {
+			return Provider(), nil
+		},
 	}
 
 	var err error

@@ -1,13 +1,14 @@
 package jetstream
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
@@ -20,7 +21,7 @@ func resourceConsumer() *schema.Resource {
 		Delete: resourceConsumerDelete,
 		Update: resourceConsumerUpdate,
 		Importer: &schema.ResourceImporter{
-			State: schema.ImportStatePassthrough,
+			StateContext: schema.ImportStatePassthroughContext,
 		},
 
 		Schema: map[string]*schema.Schema{
@@ -367,7 +368,7 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 
 	ok, errs := cfg.Validate(new(SchemaValidator))
 	if !ok {
-		return api.ConsumerConfig{}, fmt.Errorf(strings.Join(errs, ", "))
+		return api.ConsumerConfig{}, errors.New(strings.Join(errs, ", "))
 	}
 
 	return cfg, nil
@@ -532,7 +533,6 @@ func resourceConsumerRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
-	d.Set("stream", cons.StreamName())
 	d.Set("description", cons.Description())
 	d.Set("metadata", cons.Metadata())
 	d.Set("durable_name", cons.DurableName())
@@ -557,7 +557,7 @@ func resourceConsumerRead(d *schema.ResourceData, m any) error {
 	d.Set("memory", cons.MemoryStorage())
 
 	if cons.InactiveThreshold() != 0 {
-		d.Set("inactive_threshold", cons.InactiveThreshold().String())
+		d.Set("inactive_threshold", cons.InactiveThreshold().Seconds())
 	}
 
 	switch cons.DeliverPolicy() {
@@ -607,7 +607,7 @@ func resourceConsumerRead(d *schema.ResourceData, m any) error {
 
 	var bo []any
 	for _, d := range cons.Backoff() {
-		bo = append(bo, d.String())
+		bo = append(bo, d.Seconds())
 	}
 	d.Set("backoff", bo)
 

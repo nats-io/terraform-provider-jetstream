@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/hashicorp/terraform-plugin-sdk/plugin"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/plugin"
 	"github.com/nats-io/terraform-provider-jetstream/jetstream"
 )
 

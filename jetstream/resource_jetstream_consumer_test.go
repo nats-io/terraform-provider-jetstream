@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
 )
@@ -92,8 +92,8 @@ func TestResourceConsumer(t *testing.T) {
 	updateBasicConfig = fmt.Sprintf(strings.ReplaceAll(updateBasicConfig, "bar", "baz"), nc.ConnectedUrl())
 
 	resource.Test(t, resource.TestCase{
-		Providers:    testJsProviders,
-		CheckDestroy: testConsumerDoesNotExist(t, mgr, "TEST", "C1"),
+		ProviderFactories: testJsProviders,
+		CheckDestroy:      testConsumerDoesNotExist(t, mgr, "TEST", "C1"),
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(testConsumerConfig_basic, nc.ConnectedUrl()),
