@@ -33,7 +33,8 @@ resource "jetstream_consumer" "ORDERS_MONITOR" {
   stream_id        = jetstream_stream.ORDERS.id
   durable_name     = "MONITOR"
   deliver_last     = true
-  ack_policy       = "none"
+  ack_policy       = "explicit"
+  max_ack_pending  = 100
   delivery_subject = "monitor.ORDERS"
 }
 
