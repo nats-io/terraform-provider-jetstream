@@ -415,10 +415,13 @@ func resourceConsumerUpdate(d *schema.ResourceData, m any) error {
 		return err
 	}
 
-	s := strings.TrimSuffix(cons.SampleFrequency(), "%")
-	freq, err := strconv.Atoi(s)
-	if err != nil {
-		return fmt.Errorf("failed to parse consumer sampling configuration: %v", err)
+	freq := 0
+	if len(cons.SampleFrequency()) > 0 {
+		s := strings.TrimSuffix(cons.SampleFrequency(), "%")
+		freq, err = strconv.Atoi(s)
+		if err != nil {
+			return fmt.Errorf("failed to parse consumer sampling configuration: %v", err)
+		}
 	}
 
 	opts := []jsm.ConsumerOption{
