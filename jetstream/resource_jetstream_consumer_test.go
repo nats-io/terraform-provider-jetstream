@@ -51,6 +51,7 @@ resource "jetstream_consumer" "TEST_C2" {
   stream_sequence = 10
   max_ack_pending = 20
   filter_subjects = ["TEST.a", "TEST.b"]
+  max_waiting      = 10
 }
 `
 
@@ -70,6 +71,7 @@ resource "jetstream_consumer" "TEST_C3" {
   stream_sequence = 10
   max_ack_pending = 20
   filter_subject = "TEST.a"
+  delivery_subject = "ORDERS.a"
 }
 `
 
