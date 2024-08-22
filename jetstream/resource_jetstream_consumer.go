@@ -193,12 +193,13 @@ func resourceConsumer() *schema.Resource {
 				ForceNew:    true,
 			},
 			"max_waiting": {
-				Type:         schema.TypeInt,
-				Description:  "The number of pulls that can be outstanding on a pull consumer, pulls received after this is reached are ignored",
-				Optional:     true,
-				Default:      512,
-				ForceNew:     false,
-				ValidateFunc: validation.IntAtLeast(0),
+				Type:          schema.TypeInt,
+				Description:   "The number of pulls that can be outstanding on a pull consumer, pulls received after this is reached are ignored",
+				Optional:      true,
+				Computed:      true,
+				ConflictsWith: []string{"delivery_subject"},
+				ForceNew:      false,
+				ValidateFunc:  validation.IntAtLeast(0),
 			},
 			"headers_only": {
 				Type:        schema.TypeBool,
@@ -291,7 +292,12 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 	if cfg.DeliverSubject != "" {
 		cfg.DeliverGroup = d.Get("delivery_group").(string)
 	} else {
-		cfg.MaxWaiting = d.Get("max_waiting").(int)
+		if max_waiting := d.Get("max_waiting").(int); max_waiting == 0 {
+			// set default value. default cannot be set because this field is computed
+			max_waiting = 512
+		} else {
+			cfg.MaxWaiting = max_waiting
+		}
 	}
 
 	for _, d := range d.Get("backoff").([]any) {
