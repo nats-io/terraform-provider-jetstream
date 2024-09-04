@@ -232,6 +232,11 @@ func resourceStream() *schema.Resource {
 				Default:     true,
 				Optional:    true,
 			},
+			"mirror_direct": {
+				Type:        schema.TypeBool,
+				Description: "If true, and the stream is a mirror, the mirror will participate in a serving direct get requests for individual messages from origin stream",
+				Optional:    true,
+			},
 			"placement_cluster": {
 				Type:        schema.TypeString,
 				Description: "Place the stream in a specific cluster, influenced by placement_tags",
@@ -288,6 +293,18 @@ func resourceStream() *schema.Resource {
 			"republish_headers_only": {
 				Type:        schema.TypeBool,
 				Description: "Republish only message headers, no bodies",
+				ForceNew:    false,
+				Optional:    true,
+			},
+			"max_ack_pending": {
+				Type:        schema.TypeInt,
+				Description: "Defines the maximum number of messages, without acknowledgment, that can be outstanding",
+				ForceNew:    false,
+				Optional:    true,
+			},
+			"inactive_threshold": {
+				Type:        schema.TypeInt,
+				Description: "Duration that instructs the server to clean up consumers inactive for that long",
 				ForceNew:    false,
 				Optional:    true,
 			},
@@ -368,6 +385,8 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 	d.Set("allow_direct", str.DirectAllowed())
 	d.Set("discard_new_per_subject", str.DiscardNewPerSubject())
 	d.Set("compression", compression)
+	d.Set("max_ack_pending", str.ConsumerLimits().MaxAckPending)
+	d.Set("inactive_threshold", str.ConsumerLimits().InactiveThreshold)
 
 	if transform := str.Configuration().SubjectTransform; transform != nil {
 		d.Set("subject_transform", []map[string]string{
@@ -412,6 +431,7 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 		mirrors := []map[string]any{
 			streamSourceConfigRead(mirror),
 		}
+		d.Set("mirror_direct", str.MirrorDirectAllowed())
 		d.Set("mirror", mirrors)
 	}
 

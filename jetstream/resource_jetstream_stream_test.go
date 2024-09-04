@@ -2,6 +2,7 @@ package jetstream
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -70,11 +71,13 @@ provider "jetstream" {
 resource "jetstream_stream" "other" {
 	name = "OTHER"
 	subjects = ["js.in.OTHER.>"]
+	allow_direct = true
 }
 
 resource "jetstream_stream" "mirror_transform_test" {
 	name = "MIRROR_TRANSFORM_TEST"
     description = "typeStreamConfigMirrorTransformed"
+	mirror_direct = true
 	mirror {
 		name = "OTHER"
 		start_seq = 11
@@ -171,6 +174,40 @@ resource "jetstream_stream" "test" {
 		source = "TEST.>"
 		destination = "1.>"
 	}
+}
+`
+
+const pedanticMaxAge = `
+provider "jetstream" {
+	servers = "%s"
+}
+
+resource "jetstream_stream" "max_age_test" {
+  name             = "MAX_AGE_TEST"
+  subjects         = ["MAX_AGE_TEXT.*"]
+  duplicate_window = 2
+  max_age          = 1
+}`
+
+const pedanticMirrorDirect = `
+provider "jetstream" {
+	servers = "%s"
+}
+
+resource "jetstream_stream" "pedantic_source" {
+  name         = "PEDANTIC_SOURCE"
+  subjects     = ["PEDANTIC_SOURCE.*"]
+  allow_direct = false
+}
+
+resource "jetstream_stream" "pedantic_mirror" {
+  name          = "PEDANTIC_MIRROR"
+  mirror_direct = true
+  mirror {
+    name = "PEDANTIC_SOURCE"
+  }
+
+  depends_on    = [ jetstream_stream.pedantic_source ]
 }
 `
 
@@ -283,6 +320,14 @@ func TestResourceStream(t *testing.T) {
 					testStreamHasSubjects(t, mgr, "TEST", []string{"TEST.*"}),
 					testStreamIsTransformed(t, mgr, "TEST", api.SubjectTransformConfig{Source: "TEST.>", Destination: "1.>"}),
 				),
+			},
+			{
+				Config:      fmt.Sprintf(pedanticMaxAge, nc.ConnectedUrl()),
+				ExpectError: regexp.MustCompile(`duplicates window can not be larger then max age \(10052\)`),
+			},
+			{
+				Config:      fmt.Sprintf(pedanticMirrorDirect, nc.ConnectedUrl()),
+				ExpectError: regexp.MustCompile(`origin stream has direct get set, mirror has it disabled \(10157\)`),
 			},
 		},
 	})

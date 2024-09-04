@@ -50,6 +50,9 @@ func createJSServer(t *testing.T) (srv *server.Server) {
 		Port:      -1,
 		StoreDir:  dir,
 		JetStream: true,
+		JetStreamLimits: server.JSLimitOpts{
+			MaxRequestBatch: 1,
+		},
 	})
 	checkErr(t, err, "could not start js server: %v", err)
 

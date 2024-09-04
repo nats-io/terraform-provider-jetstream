@@ -269,6 +269,10 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 			return api.StreamConfig{}, fmt.Errorf("expected exactly one mirror source")
 		}
 		stream.Mirror = sources[0]
+		mirrorDirect, ok := d.GetOk("mirror_direct")
+		if ok {
+			stream.MirrorDirect = mirrorDirect.(bool)
+		}
 	}
 
 	ss, ok := d.GetOk("source")
@@ -301,6 +305,16 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		} else {
 			return api.StreamConfig{}, fmt.Errorf("invalid metadata")
 		}
+	}
+
+	max_ack_pending, ok := d.GetOk("max_ack_pending")
+	if ok {
+		stream.ConsumerLimits.MaxAckPending = max_ack_pending.(int)
+	}
+
+	inactive_threshold, ok := d.GetOk("inactive_threshold")
+	if ok {
+		stream.ConsumerLimits.InactiveThreshold = time.Second * time.Duration(inactive_threshold.(int))
 	}
 
 	ok, errs := stream.Validate(new(SchemaValidator))
@@ -528,7 +542,7 @@ func connectMgr(d *schema.ResourceData) (any, error) {
 			return nil, nil, err
 		}
 
-		mgr, err := jsm.New(nc, jsm.WithAPIValidation(new(SchemaValidator)))
+		mgr, err := jsm.New(nc, jsm.WithAPIValidation(new(SchemaValidator)), jsm.WithPedanticRequests())
 		if err != nil {
 			return nil, nil, err
 		}

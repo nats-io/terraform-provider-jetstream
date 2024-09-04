@@ -15,9 +15,10 @@ resource "jetstream_stream" "ORDERS" {
 
 ```hcl
 resource "jetstream_stream" "ORDERS_ARCHIVE" {
-  name     = "ORDERS_ARCHIVE"
-  storage  = "file"
-  max_age  = 5 * 60 * 60 * 24 * 365
+  name          = "ORDERS_ARCHIVE"
+  storage       = "file"
+  max_age       = 5 * 60 * 60 * 24 * 365
+  mirror_direct = true
 
   mirror {
     name = "ORDERS"
@@ -34,6 +35,8 @@ Above the `ORDERS_ARCHIVE` stream is a mirror of `ORDERS`, valid options for spe
  * `start_seq` - (optional) Starts the mirror or source at this sequence in the source
  * `start_time` - (optional) Starts the mirror or source at this time in the source, in RFC3339 format
  * `external` - (optional) Reference to an external stream with keys `api` and `deliver`
+ * `mirror_direct` - (optional) If true the mirror will participate in a serving direct get requests for individual messages from the origin stream
+
 
 ## Attribute Reference
 
@@ -66,3 +69,5 @@ Above the `ORDERS_ARCHIVE` stream is a mirror of `ORDERS`, valid options for spe
  * `republish_source` - (optional) Republish matching messages to `republish_destination`
  * `republish_destination` - (optional) The destination to publish messages to
  * `republish_headers_only` - (optional) Republish only message headers, no bodies
+ * `inactive_threshold` - (optional) Removes the consumer after a idle period, specified as a duration in seconds
+ * `max_ack_pending` - (optional) Maximum pending Acks before consumers are paused

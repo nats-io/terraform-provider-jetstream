@@ -2,6 +2,7 @@ package jetstream
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -32,6 +33,7 @@ resource "jetstream_consumer" "TEST_C1" {
   metadata           = {
     foo = "bar"
   }
+  max_batch          = 1
 }
 `
 
@@ -51,7 +53,8 @@ resource "jetstream_consumer" "TEST_C2" {
   stream_sequence = 10
   max_ack_pending = 20
   filter_subjects = ["TEST.a", "TEST.b"]
-  max_waiting      = 10
+  max_waiting     = 10
+  max_batch       = 1
 }
 `
 
@@ -66,12 +69,74 @@ resource "jetstream_stream" "test" {
 }
 
 resource "jetstream_consumer" "TEST_C3" {
-  stream_id       = jetstream_stream.test.id
-  durable_name    = "C3"
-  stream_sequence = 10
-  max_ack_pending = 20
-  filter_subject = "TEST.a"
+  stream_id        = jetstream_stream.test.id
+  durable_name     = "C3"
+  stream_sequence  = 10
+  max_ack_pending  = 20
+  filter_subject   = "TEST.a"
   delivery_subject = "ORDERS.a"
+}
+`
+
+const testBackoffPedantic = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_stream" "test" {
+  name     = "TEST"
+  subjects = ["TEST.*"]
+}
+
+resource "jetstream_consumer" "TEST_C4" {
+  stream_id        = jetstream_stream.test.id
+  durable_name     = "C4"
+  stream_sequence  = 10
+  filter_subject   = "TEST.a"
+  delivery_subject = "ORDERS.a"
+  ack_wait         = 10
+  backoff          = [1,10,20,60]
+}
+`
+
+const testConsumerLimitsPedantic = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_stream" "test" {
+  name               = "TEST"
+  subjects           = ["TEST.*"]
+  max_ack_pending    = 1
+  inactive_threshold = 1
+}
+
+resource "jetstream_consumer" "TEST_C5" {
+  stream_id        = jetstream_stream.test.id
+  durable_name     = "C5"
+  stream_sequence  = 10
+  filter_subject   = "TEST.a"
+  delivery_subject = "ORDERS.a"
+}
+
+`
+
+const testConsumerMaxRequestBatchPedantic = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_stream" "test" {
+  name     = "TEST"
+  subjects = ["TEST.*"]
+}
+
+resource "jetstream_consumer" "TEST_C6" {
+  stream_id       = jetstream_stream.test.id
+  durable_name    = "C5"
+  deliver_all     = true
+  filter_subject  = "TEST.received"
+  max_batch       = 100
 }
 `
 
@@ -139,6 +204,18 @@ func TestResourceConsumer(t *testing.T) {
 					testConsumerHasFilterSubjects(t, mgr, "TEST", "C3", []string{}),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C3", "filter_subject", "TEST.a"),
 				),
+			},
+			{
+				Config:      fmt.Sprintf(testBackoffPedantic, nc.ConnectedUrl()),
+				ExpectError: regexp.MustCompile(`first backoff value has to equal batch AckWait \(10157\)`),
+			},
+			{
+				Config:      fmt.Sprintf(testConsumerLimitsPedantic, nc.ConnectedUrl()),
+				ExpectError: regexp.MustCompile(`inactive_threshold must be set if it's configured in stream limits \(10157\)`),
+			},
+			{
+				Config:      fmt.Sprintf(testConsumerMaxRequestBatchPedantic, nc.ConnectedUrl()),
+				ExpectError: regexp.MustCompile(`consumer max request batch exceeds server limit of 1 \(10125\)`),
 			},
 		},
 	})

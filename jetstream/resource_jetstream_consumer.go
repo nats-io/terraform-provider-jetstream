@@ -411,68 +411,19 @@ func resourceConsumerUpdate(d *schema.ResourceData, m any) error {
 		return nil
 	}
 
-	cons, err := mgr.LoadConsumer(stream, durable)
-	if err != nil {
-		return err
-	}
-
 	cfg, err := consumerConfigFromResourceData(d)
 	if err != nil {
 		return err
 	}
 
-	freq := 0
-	if len(cons.SampleFrequency()) > 0 {
-		s := strings.TrimSuffix(cons.SampleFrequency(), "%")
-		freq, err = strconv.Atoi(s)
-		if err != nil {
-			return fmt.Errorf("failed to parse consumer sampling configuration: %v", err)
-		}
-	}
-
-	opts := []jsm.ConsumerOption{
-		jsm.ConsumerDescription(cfg.Description),
-		jsm.ConsumerMetadata(cfg.Metadata),
-		jsm.FilterStreamBySubject(cfg.FilterSubject),
-		jsm.FilterStreamBySubject(cfg.FilterSubjects...),
-		jsm.AckWait(cfg.AckWait),
-		jsm.MaxDeliveryAttempts(cfg.MaxDeliver),
-		jsm.SamplePercent(freq),
-		jsm.MaxAckPending(uint(cfg.MaxAckPending)),
-		jsm.MaxWaiting(uint(cfg.MaxWaiting)),
-		jsm.MaxRequestExpires(cfg.MaxRequestExpires),
-		jsm.MaxRequestBatch(uint(cfg.MaxRequestBatch)),
-	}
-
-	if cfg.HeadersOnly {
-		opts = append(opts, jsm.DeliverHeadersOnly())
-	}
-
-	err = cons.UpdateConfiguration(opts...)
+	// We call NewconsumerFromDefault because of the idempotent way consumers are created/updated
+	// If the consumer already exists, it will be updated, and if not we'll exit before we get here
+	_, err = mgr.NewConsumerFromDefault(stream, cfg)
 	if err != nil {
 		return err
 	}
 
 	return resourceConsumerRead(d, m)
-}
-
-func checkConsumerOnLimitsStream(mgr *jsm.Manager, streamName string, cfg *api.ConsumerConfig) error {
-	stream, err := mgr.LoadStream(streamName)
-	if err != nil {
-		return err
-	}
-
-	if stream.ConsumerLimits().InactiveThreshold > 0 || stream.ConsumerLimits().MaxAckPending > 0 {
-		if cfg.InactiveThreshold == 0 {
-			return fmt.Errorf("inactive_threshold is required on streams with consumer limits set")
-		}
-
-		if cfg.MaxAckPending == 0 {
-			return fmt.Errorf("max_ack_pending is required on streams with consumer limits set")
-		}
-	}
-
-	return nil
 }
 
 func resourceConsumerCreate(d *schema.ResourceData, m any) error {
@@ -491,11 +442,6 @@ func resourceConsumerCreate(d *schema.ResourceData, m any) error {
 		return err
 	}
 	defer nc.Close()
-
-	err = checkConsumerOnLimitsStream(mgr, stream, &cfg)
-	if err != nil {
-		return err
-	}
 
 	_, err = mgr.NewConsumerFromDefault(stream, cfg)
 	if err != nil {
