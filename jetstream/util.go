@@ -300,7 +300,9 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		if ok {
 			stream.Metadata = map[string]string{}
 			for k, v := range mt {
-				stream.Metadata[k] = v.(string)
+				if !isServerPrefix(v.(string)) {
+					stream.Metadata[k] = v.(string)
+				}
 			}
 		} else {
 			return api.StreamConfig{}, fmt.Errorf("invalid metadata")
@@ -549,4 +551,20 @@ func connectMgr(d *schema.ResourceData) (any, error) {
 
 		return nc, mgr, err
 	}, nil
+}
+
+func stripServerMetadata(meta map[string]string) map[string]string {
+	md := map[string]string{}
+
+	for k, v := range meta {
+		if !isServerPrefix(k) {
+			md[k] = v
+		}
+	}
+
+	return md
+}
+
+func isServerPrefix(s string) bool {
+	return strings.HasPrefix("_nats.", s)
 }
