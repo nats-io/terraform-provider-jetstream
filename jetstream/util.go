@@ -548,6 +548,15 @@ func connectMgr(d *schema.ResourceData) (any, error) {
 			return nil, nil, err
 		}
 
+		apiLevel, err := mgr.MetaApiLevel(true)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if apiLevel < 1 {
+			return nil, nil, fmt.Errorf("unsupported api level: %d. Requires NATS Server 2.11 or newer", apiLevel)
+		}
+
 		return nc, mgr, err
 	}, nil
 }
