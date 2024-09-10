@@ -368,7 +368,7 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 
 	d.Set("name", str.Name())
 	d.Set("description", str.Description())
-	d.Set("metadata", stripServerMetadata(str.Metadata()))
+	d.Set("metadata", jsm.FilterServerMetadata(str.Metadata()))
 	d.Set("subjects", str.Subjects())
 	d.Set("max_consumers", str.MaxConsumers())
 	d.Set("max_msgs", int(str.MaxMsgs()))
