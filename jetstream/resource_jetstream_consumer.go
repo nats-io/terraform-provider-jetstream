@@ -363,12 +363,11 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 	if ok {
 		mt, ok := m.(map[string]any)
 		if ok {
-			cfg.Metadata = map[string]string{}
+			meta := map[string]string{}
 			for k, v := range mt {
-				if !isServerPrefix(k) {
-					cfg.Metadata[k] = v.(string)
-				}
+				meta[k] = v.(string)
 			}
+			cfg.Metadata = jsm.FilterServerMetadata(meta)
 		} else {
 			return api.ConsumerConfig{}, fmt.Errorf("invalid metadata")
 		}
@@ -491,7 +490,7 @@ func resourceConsumerRead(d *schema.ResourceData, m any) error {
 	}
 
 	d.Set("description", cons.Description())
-	d.Set("metadata", stripServerMetadata(cons.Metadata()))
+	d.Set("metadata", jsm.FilterServerMetadata(cons.Metadata()))
 	d.Set("durable_name", cons.DurableName())
 	d.Set("delivery_subject", cons.DeliverySubject())
 	d.Set("ack_wait", cons.AckWait().Seconds())

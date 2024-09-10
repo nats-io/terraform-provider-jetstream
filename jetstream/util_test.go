@@ -18,7 +18,7 @@ func testStreamHasMetadata(t *testing.T, mgr *jsm.Manager, stream string, metada
 			return err
 		}
 
-		if cmp.Equal(stripServerMetadata(str.Metadata()), metadata) {
+		if cmp.Equal(jsm.FilterServerMetadata(str.Metadata()), metadata) {
 			return nil
 		}
 
@@ -33,7 +33,7 @@ func testConsumerHasMetadata(t *testing.T, mgr *jsm.Manager, stream string, cons
 			return err
 		}
 
-		if cmp.Equal(stripServerMetadata(cons.Metadata()), metadata) {
+		if cmp.Equal(jsm.FilterServerMetadata(cons.Metadata()), metadata) {
 			return nil
 		}
 
