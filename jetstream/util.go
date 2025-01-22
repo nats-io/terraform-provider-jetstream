@@ -1,3 +1,16 @@
+// Copyright 2025 The NATS Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package jetstream
 
 import (
@@ -210,26 +223,29 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 	}
 
 	stream := api.StreamConfig{
-		Name:             d.Get("name").(string),
-		Subjects:         subjects,
-		Retention:        retention,
-		Discard:          discard,
-		DiscardNewPer:    d.Get("discard_new_per_subject").(bool),
-		MaxConsumers:     d.Get("max_consumers").(int),
-		MaxMsgs:          int64(d.Get("max_msgs").(int)),
-		MaxBytes:         int64(d.Get("max_bytes").(int)),
-		MaxAge:           time.Second * time.Duration(d.Get("max_age").(int)),
-		Duplicates:       time.Second * time.Duration(d.Get("duplicate_window").(int)),
-		MaxMsgSize:       int32(d.Get("max_msg_size").(int)),
-		Storage:          storage,
-		Replicas:         d.Get("replicas").(int),
-		NoAck:            !d.Get("ack").(bool),
-		AllowDirect:      d.Get("allow_direct").(bool),
-		DenyDelete:       d.Get("deny_delete").(bool),
-		DenyPurge:        d.Get("deny_purge").(bool),
-		RollupAllowed:    d.Get("allow_rollup_hdrs").(bool),
-		Placement:        placement,
-		SubjectTransform: subjectTransforms,
+		Name:                   d.Get("name").(string),
+		Subjects:               subjects,
+		Retention:              retention,
+		Discard:                discard,
+		DiscardNewPer:          d.Get("discard_new_per_subject").(bool),
+		MaxConsumers:           d.Get("max_consumers").(int),
+		MaxMsgs:                int64(d.Get("max_msgs").(int)),
+		MaxBytes:               int64(d.Get("max_bytes").(int)),
+		MaxAge:                 time.Second * time.Duration(d.Get("max_age").(int)),
+		Duplicates:             time.Second * time.Duration(d.Get("duplicate_window").(int)),
+		MaxMsgSize:             int32(d.Get("max_msg_size").(int)),
+		Storage:                storage,
+		Replicas:               d.Get("replicas").(int),
+		NoAck:                  !d.Get("ack").(bool),
+		AllowDirect:            d.Get("allow_direct").(bool),
+		DenyDelete:             d.Get("deny_delete").(bool),
+		DenyPurge:              d.Get("deny_purge").(bool),
+		RollupAllowed:          d.Get("allow_rollup_hdrs").(bool),
+		Placement:              placement,
+		AllowMsgTTL:            d.Get("allow_msg_ttl").(bool),
+		SubjectDeleteMarkers:   d.Get("subject_delete_markers").(bool),
+		SubjectDeleteMarkerTTL: d.Get("subject_delete_marker_ttl").(string),
+		SubjectTransform:       subjectTransforms,
 	}
 
 	repubSrc := d.Get("republish_source").(string)

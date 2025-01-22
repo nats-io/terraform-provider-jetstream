@@ -1,3 +1,16 @@
+// Copyright 2025 The NATS Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package jetstream
 
 import (
@@ -186,6 +199,32 @@ func testStreamIsMirrorOf(t *testing.T, mgr *jsm.Manager, stream string, mirror 
 		}
 		if str.Mirror().Name != mirror {
 			return fmt.Errorf("stream is mirror of %q", str.Mirror().Name)
+		}
+
+		return nil
+	}
+}
+
+func testStreamAllowsTTLs(t *testing.T, mgr *jsm.Manager, stream string, markerTTL string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		str, err := mgr.LoadStream(stream)
+		if err != nil {
+			return err
+		}
+
+		if !str.AllowMsgTTL() {
+			return fmt.Errorf("stream does not allow TTLs")
+		}
+		if markerTTL == "" {
+			return nil
+		}
+
+		if !str.SubjectDeleteMarkers() {
+			return fmt.Errorf("stream does not allow delete markers")
+		}
+
+		if str.SubjectDeleteMarkerTTL() != markerTTL {
+			return fmt.Errorf("stream does not have a marker TTL")
 		}
 
 		return nil
