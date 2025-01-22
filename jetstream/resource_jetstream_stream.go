@@ -1,3 +1,16 @@
+// Copyright 2025 The NATS Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package jetstream
 
 import (
@@ -308,6 +321,27 @@ func resourceStream() *schema.Resource {
 				ForceNew:    false,
 				Optional:    true,
 			},
+			"allow_msg_ttl": {
+				Type:        schema.TypeBool,
+				Description: "AllowMsgTTL allows header initiated per-message TTLs",
+				Default:     false,
+				ForceNew:    true,
+				Optional:    true,
+			},
+			"subject_delete_markers": {
+				Type:         schema.TypeBool,
+				Description:  "Enables placing markers in the stream for certain message delete operations",
+				Default:      false,
+				ForceNew:     false,
+				Optional:     true,
+				RequiredWith: []string{"subject_delete_marker_ttl", "allow_msg_ttl"},
+			},
+			"subject_delete_marker_ttl": {
+				Type:        schema.TypeString,
+				Description: "When placing a marker, how long should it be valid",
+				ForceNew:    false,
+				Optional:    true,
+			},
 		},
 	}
 }
@@ -387,6 +421,9 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 	d.Set("compression", compression)
 	d.Set("max_ack_pending", str.ConsumerLimits().MaxAckPending)
 	d.Set("inactive_threshold", str.ConsumerLimits().InactiveThreshold)
+	d.Set("allow_msg_ttl", str.AllowMsgTTL())
+	d.Set("subject_delete_markers", str.SubjectDeleteMarkers())
+	d.Set("subject_delete_marker_ttl", str.SubjectDeleteMarkerTTL())
 
 	if transform := str.Configuration().SubjectTransform; transform != nil {
 		d.Set("subject_transform", []map[string]string{

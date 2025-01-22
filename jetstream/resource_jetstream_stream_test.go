@@ -1,3 +1,16 @@
+// Copyright 2025 The NATS Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package jetstream
 
 import (
@@ -21,6 +34,9 @@ resource "jetstream_stream" "test" {
 	subjects = ["TEST.*"]
     description = "testing stream"
     compression = "s2"
+    allow_msg_ttl = true
+    subject_delete_markers = true
+    subject_delete_marker_ttl = "24h"
 	metadata = {
 		foo = "bar"
 	}
@@ -241,10 +257,12 @@ func TestResourceStream(t *testing.T) {
 					testStreamHasSubjects(t, mgr, "TEST", []string{"TEST.*"}),
 					testStreamHasMetadata(t, mgr, "TEST", map[string]string{"foo": "bar"}),
 					testStreamIsCompressed(t, mgr, "TEST"),
+					testStreamAllowsTTLs(t, mgr, "TEST", "24h"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "max_msgs", "-1"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "description", "testing stream"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "deny_delete", "false"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "compression", "s2"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "allow_msg_ttl", "true"),
 				),
 			},
 			{
