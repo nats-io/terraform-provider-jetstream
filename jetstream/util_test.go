@@ -41,6 +41,20 @@ func testConsumerHasMetadata(t *testing.T, mgr *jsm.Manager, stream string, cons
 	}
 }
 
+func testConsumerHasFilterSubject(t *testing.T, mgr *jsm.Manager, stream string, consumer string, subject string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		cons, err := mgr.LoadConsumer(stream, consumer)
+		if err != nil {
+			return err
+		}
+		if cons.FilterSubject() == subject {
+			return nil
+		}
+
+		return fmt.Errorf("expected %q got %q", subject, cons.FilterSubject())
+	}
+}
+
 func testConsumerHasFilterSubjects(t *testing.T, mgr *jsm.Manager, stream string, consumer string, subjects []string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		cons, err := mgr.LoadConsumer(stream, consumer)
