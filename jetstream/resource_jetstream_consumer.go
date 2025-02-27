@@ -414,23 +414,26 @@ func resourceConsumerUpdate(d *schema.ResourceData, m any) error {
 		return err
 	}
 
-	s := strings.TrimSuffix(cons.SampleFrequency(), "%")
-	freq, err := strconv.Atoi(s)
-	if err != nil {
-		return fmt.Errorf("failed to parse consumer sampling configuration: %v", err)
-	}
-
 	opts := []jsm.ConsumerOption{
 		jsm.ConsumerDescription(cfg.Description),
 		jsm.ConsumerMetadata(cfg.Metadata),
 		jsm.FilterStreamBySubject(cfg.FilterSubject),
 		jsm.AckWait(cfg.AckWait),
 		jsm.MaxDeliveryAttempts(cfg.MaxDeliver),
-		jsm.SamplePercent(freq),
 		jsm.MaxAckPending(uint(cfg.MaxAckPending)),
 		jsm.MaxWaiting(uint(cfg.MaxWaiting)),
 		jsm.MaxRequestExpires(cfg.MaxRequestExpires),
 		jsm.MaxRequestBatch(uint(cfg.MaxRequestBatch)),
+	}
+
+	if len(cons.SampleFrequency()) > 0 {
+		s := strings.TrimSuffix(cons.SampleFrequency(), "%")
+		freq, err := strconv.Atoi(s)
+		if err != nil {
+			return fmt.Errorf("failed to parse consumer sampling configuration: %v", err)
+		}
+
+		opts = append(opts, jsm.SamplePercent(freq))
 	}
 
 	if cfg.HeadersOnly {
