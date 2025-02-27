@@ -132,6 +132,30 @@ resource "jetstream_consumer" "maqs-e" {
   replicas                 = 1
 }`
 
+const testSBugStage3 = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_stream" "test" {
+  name     = "TEST"
+  subjects = ["test.>"]
+}
+
+resource "jetstream_consumer" "maqs-e" {
+  stream_id                = jetstream_stream.test.id
+  durable_name             = "maqs-e"
+  filter_subject           = "test.test-complete.*.*.*.*.*.eu.>"
+  deliver_all              = true
+  delivery_group           = "maqs-e"
+  delivery_subject         = "DELIVER.maqs-e"
+  ack_policy               = "explicit"
+  replay_policy            = "instant"
+  max_ack_pending          = 1000
+  max_waiting              = 0
+  replicas                 = 1
+}`
+
 func TestSBug(t *testing.T) {
 	srv := createJSServer(t)
 	defer srv.Shutdown()
@@ -176,6 +200,15 @@ func TestSBug(t *testing.T) {
 						"test.test-prod-res-tools.*.*.*.*.*.eu.>",
 						"test.test-complete.*.*.*.*.*.eu.>",
 					}),
+				),
+			},
+			{
+				Config: fmt.Sprintf(testSBugStage3, nc.ConnectedUrl()),
+				Check: resource.ComposeTestCheckFunc(
+					testStreamExist(t, mgr, "TEST"),
+					testConsumerExist(t, mgr, "TEST", "maqs-e"),
+					testConsumerHasFilterSubjects(t, mgr, "TEST", "maqs-e", []string{}),
+					testConsumerHasFilterSubject(t, mgr, "TEST", "maqs-e", "test.test-complete.*.*.*.*.*.eu.>"),
 				),
 			},
 		}})

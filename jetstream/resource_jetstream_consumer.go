@@ -452,11 +452,6 @@ func resourceConsumerUpdate(d *schema.ResourceData, m any) error {
 	}
 	ncfg.FilterSubjects = cfg.FilterSubjects
 
-	err = cons.UpdateConfiguration(opts...)
-	if err != nil {
-		return err
-	}
-
 	_, err = mgr.NewConsumerFromDefault(cons.StreamName(), *ncfg)
 	if err != nil {
 		return err
