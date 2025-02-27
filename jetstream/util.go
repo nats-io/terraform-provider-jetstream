@@ -496,7 +496,7 @@ func connectMgr(d *schema.ResourceData) (any, error) {
 			return nil, nil, err
 		}
 
-		mgr, err := jsm.New(nc, jsm.WithAPIValidation(new(SchemaValidator)))
+		mgr, err := jsm.New(nc, jsm.WithTrace(), jsm.WithAPIValidation(new(SchemaValidator)))
 		if err != nil {
 			return nil, nil, err
 		}

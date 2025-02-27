@@ -423,7 +423,6 @@ func resourceConsumerUpdate(d *schema.ResourceData, m any) error {
 		jsm.ConsumerDescription(cfg.Description),
 		jsm.ConsumerMetadata(cfg.Metadata),
 		jsm.FilterStreamBySubject(cfg.FilterSubject),
-		jsm.FilterStreamBySubject(cfg.FilterSubjects...),
 		jsm.AckWait(cfg.AckWait),
 		jsm.MaxDeliveryAttempts(cfg.MaxDeliver),
 		jsm.SamplePercent(freq),
@@ -437,7 +436,29 @@ func resourceConsumerUpdate(d *schema.ResourceData, m any) error {
 		opts = append(opts, jsm.DeliverHeadersOnly())
 	}
 
+	// we "manually" update the config here working around
+	// an old jsm bug where filter subjects would get doubled
+	// up and multiplied which would fail on overlap
+	//
+	// new jsm.go and so next major release of tf already
+	// do not have this bug
+	ncfg, err := jsm.NewConsumerConfiguration(cfg, opts...)
+	if err != nil {
+		return err
+	}
+	ncfg.FilterSubjects = cfg.FilterSubjects
+
 	err = cons.UpdateConfiguration(opts...)
+	if err != nil {
+		return err
+	}
+
+	_, err = mgr.NewConsumerFromDefault(cons.StreamName(), *ncfg)
+	if err != nil {
+		return err
+	}
+
+	err = cons.Reset()
 	if err != nil {
 		return err
 	}
