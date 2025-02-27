@@ -1,6 +1,7 @@
 package jetstream
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -366,7 +367,7 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 
 	ok, errs := cfg.Validate(new(SchemaValidator))
 	if !ok {
-		return api.ConsumerConfig{}, fmt.Errorf(strings.Join(errs, ", "))
+		return api.ConsumerConfig{}, errors.New(strings.Join(errs, ", "))
 	}
 
 	return cfg, nil
