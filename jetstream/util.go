@@ -1,6 +1,7 @@
 package jetstream
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -273,7 +274,7 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 
 	ok, errs := stream.Validate(new(SchemaValidator))
 	if !ok {
-		return api.StreamConfig{}, fmt.Errorf(strings.Join(errs, ", "))
+		return api.StreamConfig{}, errors.New(strings.Join(errs, ", "))
 	}
 
 	return stream, nil
@@ -496,7 +497,7 @@ func connectMgr(d *schema.ResourceData) (any, error) {
 			return nil, nil, err
 		}
 
-		mgr, err := jsm.New(nc, jsm.WithAPIValidation(new(SchemaValidator)))
+		mgr, err := jsm.New(nc, jsm.WithTrace(), jsm.WithAPIValidation(new(SchemaValidator)))
 		if err != nil {
 			return nil, nil, err
 		}
