@@ -158,7 +158,7 @@ resource "jetstream_stream" "TRANSFORM" {
  * `max_msgs_per_subject` (optional) The maximum amount of messages that can be kept in the stream on a per-subject basis (number)
  * `name` - The name of the stream (string)
  * `replicas` - (optional) How many replicas of the data to keep in a clustered environment (number)
- * `retention` - (optional) The retention policy to apply over and above max_msgs, max_bytes and max_age (string)
+ * `retention` - (optional) The retention policy to apply over and above max_msgs, max_bytes and max_age (string). Options are `limits`, `interest` and `workqueue`. Defaults to `limits`.
  * `storage` - (optional) The storage engine to use to back the stream (string)
  * `subjects` - The list of subjects that will be consumed by the Stream (["list", "string"])
  * `duplicate_window` - (optional) The time window size for duplicate tracking, duration specified in seconds (number)
