@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/nats-io/jsm.go"
@@ -35,8 +36,7 @@ resource "jetstream_stream" "test" {
     description = "testing stream"
     compression = "s2"
     allow_msg_ttl = true
-    subject_delete_markers = true
-    subject_delete_marker_ttl = "24h"
+    subject_delete_marker_ttl = 24*60*60
 	metadata = {
 		foo = "bar"
 	}
@@ -257,7 +257,7 @@ func TestResourceStream(t *testing.T) {
 					testStreamHasSubjects(t, mgr, "TEST", []string{"TEST.*"}),
 					testStreamHasMetadata(t, mgr, "TEST", map[string]string{"foo": "bar"}),
 					testStreamIsCompressed(t, mgr, "TEST"),
-					testStreamAllowsTTLs(t, mgr, "TEST", "24h"),
+					testStreamAllowsTTLs(t, mgr, "TEST", 24*time.Hour),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "max_msgs", "-1"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "description", "testing stream"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "deny_delete", "false"),

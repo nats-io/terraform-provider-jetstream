@@ -71,3 +71,5 @@ Above the `ORDERS_ARCHIVE` stream is a mirror of `ORDERS`, valid options for spe
  * `republish_headers_only` - (optional) Republish only message headers, no bodies
  * `inactive_threshold` - (optional) Removes the consumer after a idle period, specified as a duration in seconds
  * `max_ack_pending` - (optional) Maximum pending Acks before consumers are paused
+ * `allow_msg_ttl` - (optional) Enables Per Message TTLs
+ * `subject_delete_marker_ttl` - (optional) Enables placing markers when Max Age removes messages, duration specified in seconds (number)

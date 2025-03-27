@@ -171,6 +171,8 @@ resource "jetstream_stream" "TRANSFORM" {
  * `allow_rollup_hdrs` - (optional) Allows the use of the Nats-Rollup header to replace all contents of a stream, or subject in a stream, with a single new message (bool)
  * `allow_direct` - (optional) Allow higher performance, direct access to get individual messages via the $JS.DS.GET API (bool)
  * `subject_transform` - (optional) A map of source and destination subjects to transform.
+ * `allow_msg_ttl` - (optional) Enables Per Message TTLs
+ * `subject_delete_marker_ttl` - (optional) Enables placing markers when Max Age removes messages, duration specified in seconds (number)
 
 ## jetstream_consumer
 

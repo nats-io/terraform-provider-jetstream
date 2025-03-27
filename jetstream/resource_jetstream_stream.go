@@ -328,17 +328,9 @@ func resourceStream() *schema.Resource {
 				ForceNew:    true,
 				Optional:    true,
 			},
-			"subject_delete_markers": {
-				Type:         schema.TypeBool,
-				Description:  "Enables placing markers in the stream for certain message delete operations",
-				Default:      false,
-				ForceNew:     false,
-				Optional:     true,
-				RequiredWith: []string{"subject_delete_marker_ttl", "allow_msg_ttl"},
-			},
 			"subject_delete_marker_ttl": {
-				Type:        schema.TypeString,
-				Description: "When placing a marker, how long should it be valid",
+				Type:        schema.TypeInt,
+				Description: "When placing a marker, how long should it be valid, duration specified in seconds",
 				ForceNew:    false,
 				Optional:    true,
 			},
@@ -422,8 +414,7 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 	d.Set("max_ack_pending", str.ConsumerLimits().MaxAckPending)
 	d.Set("inactive_threshold", str.ConsumerLimits().InactiveThreshold)
 	d.Set("allow_msg_ttl", str.AllowMsgTTL())
-	d.Set("subject_delete_markers", str.SubjectDeleteMarkers())
-	d.Set("subject_delete_marker_ttl", str.SubjectDeleteMarkerTTL())
+	d.Set("subject_delete_marker_ttl", str.SubjectDeleteMarkerTTL().Seconds())
 
 	if transform := str.Configuration().SubjectTransform; transform != nil {
 		d.Set("subject_transform", []map[string]string{

@@ -153,6 +153,145 @@ resource "jetstream_consumer" "TEST_C6" {
 }
 `
 
+const testFilterSubjectsStage1 = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_stream" "test" {
+  name     = "TEST"
+  subjects = ["test.>"]
+}
+
+resource "jetstream_consumer" "maqs-e" {
+  stream_id                = jetstream_stream.test.id
+  durable_name             = "maqs-e"
+  filter_subjects          = [
+								"test.test-component.*.*.*.*.*.eu.>", 
+								"test.test-header.*.*.*.*.*.eu.>", 
+								"test.test-operation.*.*.*.*.*.eu.>", 
+								"test.test-prod-res-tools.*.*.*.*.*.eu.>", 
+							 ]
+  deliver_all              = true
+  delivery_group           = "maqs-e"
+  delivery_subject         = "DELIVER.maqs-e"
+  ack_policy               = "explicit"
+  replay_policy            = "instant"
+  max_ack_pending          = 1000
+  replicas                 = 1
+}
+`
+
+const testFilterSubjectsStage2 = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_stream" "test" {
+  name     = "TEST"
+  subjects = ["test.>"]
+}
+
+resource "jetstream_consumer" "maqs-e" {
+  stream_id                = jetstream_stream.test.id
+  durable_name             = "maqs-e"
+  filter_subjects          = [
+								"test.test-component.*.*.*.*.*.eu.>", 
+								"test.test-header.*.*.*.*.*.eu.>", 
+								"test.test-operation.*.*.*.*.*.eu.>", 
+								"test.test-prod-res-tools.*.*.*.*.*.eu.>", 
+								"test.test-complete.*.*.*.*.*.eu.>"
+							 ]
+  deliver_all              = true
+  delivery_group           = "maqs-e"
+  delivery_subject         = "DELIVER.maqs-e"
+  ack_policy               = "explicit"
+  replay_policy            = "instant"
+  max_ack_pending          = 1000
+  replicas                 = 1
+}`
+
+const testFilterSubjectsStage3 = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_stream" "test" {
+  name     = "TEST"
+  subjects = ["test.>"]
+}
+
+resource "jetstream_consumer" "maqs-e" {
+  stream_id                = jetstream_stream.test.id
+  durable_name             = "maqs-e"
+  filter_subject           = "test.test-complete.*.*.*.*.*.eu.>"
+  deliver_all              = true
+  delivery_group           = "maqs-e"
+  delivery_subject         = "DELIVER.maqs-e"
+  ack_policy               = "explicit"
+  replay_policy            = "instant"
+  max_ack_pending          = 1000
+  replicas                 = 1
+}`
+
+func TestFilterSubjects(t *testing.T) {
+	srv := createJSServer(t)
+	defer srv.Shutdown()
+
+	nc, err := nats.Connect(srv.ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProviderFactories: testJsProviders,
+		CheckDestroy:      testConsumerDoesNotExist(t, mgr, "TEST", "maqs-e"),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(testFilterSubjectsStage1, nc.ConnectedUrl()),
+				Check: resource.ComposeTestCheckFunc(
+					testStreamExist(t, mgr, "TEST"),
+					testConsumerExist(t, mgr, "TEST", "maqs-e"),
+					testConsumerHasFilterSubjects(t, mgr, "TEST", "maqs-e", []string{
+						"test.test-component.*.*.*.*.*.eu.>",
+						"test.test-header.*.*.*.*.*.eu.>",
+						"test.test-operation.*.*.*.*.*.eu.>",
+						"test.test-prod-res-tools.*.*.*.*.*.eu.>",
+					}),
+				),
+			},
+			{
+				Config: fmt.Sprintf(testFilterSubjectsStage2, nc.ConnectedUrl()),
+				Check: resource.ComposeTestCheckFunc(
+					testStreamExist(t, mgr, "TEST"),
+					testConsumerExist(t, mgr, "TEST", "maqs-e"),
+					testConsumerHasFilterSubjects(t, mgr, "TEST", "maqs-e", []string{
+						"test.test-component.*.*.*.*.*.eu.>",
+						"test.test-header.*.*.*.*.*.eu.>",
+						"test.test-operation.*.*.*.*.*.eu.>",
+						"test.test-prod-res-tools.*.*.*.*.*.eu.>",
+						"test.test-complete.*.*.*.*.*.eu.>",
+					}),
+				),
+			},
+			{
+				Config: fmt.Sprintf(testFilterSubjectsStage3, nc.ConnectedUrl()),
+				Check: resource.ComposeTestCheckFunc(
+					testStreamExist(t, mgr, "TEST"),
+					testConsumerExist(t, mgr, "TEST", "maqs-e"),
+					testConsumerHasFilterSubjects(t, mgr, "TEST", "maqs-e", []string{}),
+					testConsumerHasFilterSubject(t, mgr, "TEST", "maqs-e", "test.test-complete.*.*.*.*.*.eu.>"),
+				),
+			},
+		}})
+}
+
 func TestResourceConsumer(t *testing.T) {
 	srv := createJSServer(t)
 	defer srv.Shutdown()
