@@ -243,8 +243,7 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		RollupAllowed:          d.Get("allow_rollup_hdrs").(bool),
 		Placement:              placement,
 		AllowMsgTTL:            d.Get("allow_msg_ttl").(bool),
-		SubjectDeleteMarkers:   d.Get("subject_delete_markers").(bool),
-		SubjectDeleteMarkerTTL: d.Get("subject_delete_marker_ttl").(string),
+		SubjectDeleteMarkerTTL: time.Second * time.Duration(d.Get("subject_delete_marker_ttl").(int)),
 		SubjectTransform:       subjectTransforms,
 	}
 

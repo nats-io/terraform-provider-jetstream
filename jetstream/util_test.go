@@ -16,6 +16,7 @@ package jetstream
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -54,6 +55,19 @@ func testConsumerHasMetadata(t *testing.T, mgr *jsm.Manager, stream string, cons
 	}
 }
 
+func testConsumerHasFilterSubject(t *testing.T, mgr *jsm.Manager, stream string, consumer string, subject string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		cons, err := mgr.LoadConsumer(stream, consumer)
+		if err != nil {
+			return err
+		}
+		if cons.FilterSubject() == subject {
+			return nil
+		}
+
+		return fmt.Errorf("expected %q got %q", subject, cons.FilterSubject())
+	}
+}
 func testConsumerHasFilterSubjects(t *testing.T, mgr *jsm.Manager, stream string, consumer string, subjects []string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		cons, err := mgr.LoadConsumer(stream, consumer)
@@ -205,7 +219,7 @@ func testStreamIsMirrorOf(t *testing.T, mgr *jsm.Manager, stream string, mirror 
 	}
 }
 
-func testStreamAllowsTTLs(t *testing.T, mgr *jsm.Manager, stream string, markerTTL string) resource.TestCheckFunc {
+func testStreamAllowsTTLs(t *testing.T, mgr *jsm.Manager, stream string, markerTTL time.Duration) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		str, err := mgr.LoadStream(stream)
 		if err != nil {
@@ -215,16 +229,12 @@ func testStreamAllowsTTLs(t *testing.T, mgr *jsm.Manager, stream string, markerT
 		if !str.AllowMsgTTL() {
 			return fmt.Errorf("stream does not allow TTLs")
 		}
-		if markerTTL == "" {
+		if markerTTL == 0 {
 			return nil
 		}
 
-		if !str.SubjectDeleteMarkers() {
-			return fmt.Errorf("stream does not allow delete markers")
-		}
-
 		if str.SubjectDeleteMarkerTTL() != markerTTL {
-			return fmt.Errorf("stream does not have a marker TTL")
+			return fmt.Errorf("stream marker ttl %v is not equal to %v", str.SubjectDeleteMarkerTTL(), markerTTL)
 		}
 
 		return nil
@@ -312,8 +322,6 @@ func testConsumerDoesNotExist(t *testing.T, mgr *jsm.Manager, stream string, con
 		return nil
 	}
 }
-
-//func testStreamIsTransformed
 
 func testStreamIsTransformed(t *testing.T, mgr *jsm.Manager, stream string, transform api.SubjectTransformConfig) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
