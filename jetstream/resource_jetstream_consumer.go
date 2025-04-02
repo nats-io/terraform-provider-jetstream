@@ -502,6 +502,7 @@ func resourceConsumerRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
+	d.Set("stream_id", fmt.Sprintf("JETSTREAM_STREAM_%s", stream))
 	d.Set("description", cons.Description())
 	d.Set("metadata", jsm.FilterServerMetadata(cons.Metadata()))
 	d.Set("durable_name", cons.DurableName())
@@ -524,10 +525,7 @@ func resourceConsumerRead(d *schema.ResourceData, m any) error {
 	d.Set("max_bytes", cons.MaxRequestMaxBytes())
 	d.Set("replicas", cons.Replicas())
 	d.Set("memory", cons.MemoryStorage())
-
-	if cons.InactiveThreshold() != 0 {
-		d.Set("inactive_threshold", cons.InactiveThreshold().Seconds())
-	}
+	d.Set("inactive_threshold", cons.InactiveThreshold().Seconds())
 
 	switch cons.DeliverPolicy() {
 	case api.DeliverAll:
@@ -551,6 +549,8 @@ func resourceConsumerRead(d *schema.ResourceData, m any) error {
 			return fmt.Errorf("failed to parse consumer sampling configuration: %v", err)
 		}
 		d.Set("sample_freq", freq)
+	} else {
+		d.Set("sample_freq", 0)
 	}
 
 	d.Set("start_time", "")
