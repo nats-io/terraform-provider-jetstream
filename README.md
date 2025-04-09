@@ -5,7 +5,9 @@ This is a Terraform provider capable of managing the following JetStream assets:
  * Key-Value Buckets
  * Key-Value Entries
 
-Since version `0.2.0` this provider requires NATS Server 2.11 or newer and will fail on older versions.
+> [!WARNING]
+>
+> Since version `0.2.0` this provider requires NATS Server 2.11 or newer and will fail on older versions.
 
 ## Installation
 
