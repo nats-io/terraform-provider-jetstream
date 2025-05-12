@@ -188,7 +188,7 @@ func resourceConsumer() *schema.Resource {
 				Description:  "Maximum pending Acks before consumers are paused",
 				Optional:     true,
 				Default:      20000,
-				ValidateFunc: validation.IntAtLeast(0),
+				ValidateFunc: validation.IntAtLeast(-1),
 				ForceNew:     false,
 			},
 			"heartbeat": {
