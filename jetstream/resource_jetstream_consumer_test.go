@@ -64,7 +64,7 @@ resource "jetstream_consumer" "TEST_C2" {
   stream_id       = jetstream_stream.test.id
   durable_name    = "C2"
   stream_sequence = 10
-  max_ack_pending = 20
+  max_ack_pending = -1
   filter_subjects = ["TEST.a", "TEST.b"]
   max_waiting     = 10
   max_batch       = 1
@@ -344,7 +344,7 @@ func TestResourceConsumer(t *testing.T) {
 					testConsumerExist(t, mgr, "TEST", "C2"),
 					testConsumerHasFilterSubjects(t, mgr, "TEST", "C2", []string{"TEST.a", "TEST.b"}),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C2", "stream_sequence", "10"),
-					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C2", "max_ack_pending", "20"),
+					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C2", "max_ack_pending", "-1"),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C2", "inactive_threshold", "0"),
 				),
 			},
