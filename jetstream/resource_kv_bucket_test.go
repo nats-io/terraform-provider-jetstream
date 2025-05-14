@@ -34,6 +34,7 @@ resource "jetstream_kv_bucket" "test" {
   history = 10
   max_value_size = 1024
   max_bucket_size = 10240
+  limit_marker_ttl = 45
 }
 `
 
@@ -65,6 +66,7 @@ func TestResourceKV(t *testing.T) {
 					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "history", "10"),
 					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "max_value_size", "1024"),
 					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "max_bucket_size", "10240"),
+					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "limit_marker_ttl", "45"),
 				),
 			},
 		},

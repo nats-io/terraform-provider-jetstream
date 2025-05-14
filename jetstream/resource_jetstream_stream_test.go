@@ -37,6 +37,7 @@ resource "jetstream_stream" "test" {
     compression = "s2"
     allow_msg_ttl = true
     subject_delete_marker_ttl = 24*60*60
+	allow_rollup_hdrs = true
 	metadata = {
 		foo = "bar"
 	}

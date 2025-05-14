@@ -330,7 +330,7 @@ func resourceStream() *schema.Resource {
 			},
 			"subject_delete_marker_ttl": {
 				Type:        schema.TypeInt,
-				Description: "When placing a marker, how long should it be valid, duration specified in seconds",
+				Description: "When placing a marker, how long should it be valid, duration specified in seconds. allow_rollup_hdrs must be set to true when using this field.",
 				ForceNew:    false,
 				Optional:    true,
 			},

@@ -170,7 +170,7 @@ resource "jetstream_stream" "TRANSFORM" {
  * `allow_direct` - (optional) Allow higher performance, direct access to get individual messages via the $JS.DS.GET API (bool)
  * `subject_transform` - (optional) A map of source and destination subjects to transform.
  * `allow_msg_ttl` - (optional) Enables Per Message TTLs
- * `subject_delete_marker_ttl` - (optional) Enables placing markers when Max Age removes messages, duration specified in seconds (number)
+ * `subject_delete_marker_ttl` - (optional) Enables placing markers when Max Age removes messages, duration specified in seconds. This field requires `allow_rollup_hdrs` to be set to true. (number)
 
 ## jetstream_consumer
 
@@ -259,6 +259,7 @@ resource "jetstream_kv_bucket" "test" {
  * `max_value_size` - (optional) Maximum size of any value
  * `max_bucket_size` - (optional) The maximum size of all data in the bucket
  * `replicas` - (optional) How many replicas to keep on a JetStream cluster
+ * `limit_marker_ttl` - (optional) Enables Per-Key TTLs and Limit Markers, specified in seconds
 
 ## jetstream_kv_entry
 
