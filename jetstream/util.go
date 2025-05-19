@@ -482,6 +482,11 @@ func getConnectProperties(d *schema.ResourceData) (*connectProperties, error) {
 	return &p, nil
 }
 
+func getConnection(d *schema.ResourceData, m any) (*nats.Conn, error) {
+	nc, _, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
+	return nc, err
+}
+
 func connectMgr(d *schema.ResourceData) (any, error) {
 	return func() (*nats.Conn, *jsm.Manager, error) {
 		props, err := getConnectProperties(d)
