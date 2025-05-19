@@ -15,12 +15,12 @@ package jetstream
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
-	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -115,7 +115,7 @@ func resourceKVBucket() *schema.Resource {
 }
 
 func resourceKVBucketCreate(d *schema.ResourceData, m any) error {
-	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
+	nc, err := getConnection(d, m)
 	if err != nil {
 		return err
 	}
@@ -145,20 +145,21 @@ func resourceKVBucketCreate(d *schema.ResourceData, m any) error {
 		}
 	}
 
-	known, err := mgr.IsKnownStream("KV_" + name)
-	if err != nil {
-		return err
-	}
-	if known {
-		return fmt.Errorf("bucket %s already exist", name)
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	js, err := jetstream.New(nc)
 	if err != nil {
 		return err
+	}
+
+	known, err := js.KeyValue(ctx, name)
+	if known != nil {
+		return fmt.Errorf("bucket %s already exist", name)
+	} else if err != nil {
+		if !errors.Is(err, jetstream.ErrBucketNotFound) {
+			return fmt.Errorf("failed to load KV bucket: %s", err)
+		}
 	}
 
 	js.CreateKeyValue(ctx, jetstream.KeyValueConfig{
@@ -185,7 +186,7 @@ func resourceKVBucketRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
-	nc, _, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
+	nc, err := getConnection(d, m)
 	if err != nil {
 		return err
 	}
@@ -237,7 +238,7 @@ func resourceKVBucketRead(d *schema.ResourceData, m any) error {
 func resourceKVBucketUpdate(d *schema.ResourceData, m any) error {
 	name := d.Get("name").(string)
 
-	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
+	nc, err := getConnection(d, m)
 	if err != nil {
 		return err
 	}
@@ -258,11 +259,29 @@ func resourceKVBucketUpdate(d *schema.ResourceData, m any) error {
 	if err != nil {
 		return err
 	}
+
 	jStatus := status.(*jetstream.KeyValueBucketStatus)
 
-	str, err := mgr.LoadStream(jStatus.StreamInfo().Config.Name)
+	str, err := js.Stream(ctx, jStatus.StreamInfo().Config.Name)
 	if err != nil {
 		return err
+	}
+
+	cfg := jetstream.KeyValueConfig{
+		Bucket:         bucket.Bucket(),
+		Description:    str.CachedInfo().Config.Description,
+		MaxValueSize:   str.CachedInfo().Config.MaxMsgSize,
+		History:        uint8(status.History()),
+		TTL:            status.TTL(),
+		MaxBytes:       str.CachedInfo().Config.MaxBytes,
+		Storage:        str.CachedInfo().Config.Storage,
+		Replicas:       str.CachedInfo().Config.Replicas,
+		Placement:      str.CachedInfo().Config.Placement,
+		RePublish:      str.CachedInfo().Config.RePublish,
+		Mirror:         str.CachedInfo().Config.Mirror,
+		Sources:        str.CachedInfo().Config.Sources,
+		Compression:    status.IsCompressed(),
+		LimitMarkerTTL: status.LimitMarkerTTL(),
 	}
 
 	history := d.Get("history").(int)
@@ -272,15 +291,14 @@ func resourceKVBucketUpdate(d *schema.ResourceData, m any) error {
 	description := d.Get("description").(string)
 	markerTTL := d.Get("limit_marker_ttl").(int)
 
-	cfg := str.Configuration()
-	cfg.MaxAge = time.Duration(ttl) * time.Second
-	cfg.MaxMsgSize = int32(maxV)
+	cfg.History = uint8(history)
+	cfg.TTL = time.Duration(ttl) * time.Second
+	cfg.MaxValueSize = int32(maxV)
 	cfg.MaxBytes = int64(maxB)
-	cfg.MaxMsgsPer = int64(history)
 	cfg.Description = description
-	cfg.SubjectDeleteMarkerTTL = time.Duration(markerTTL) * time.Second
+	cfg.LimitMarkerTTL = time.Duration(markerTTL) * time.Second
 
-	err = str.UpdateConfiguration(cfg)
+	_, err = js.CreateOrUpdateKeyValue(ctx, cfg)
 	if err != nil {
 		return err
 	}
@@ -291,7 +309,7 @@ func resourceKVBucketUpdate(d *schema.ResourceData, m any) error {
 func resourceKVBucketDelete(d *schema.ResourceData, m any) error {
 	name := d.Get("name").(string)
 
-	nc, _, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
+	nc, err := getConnection(d, m)
 	if err != nil {
 		return err
 	}
