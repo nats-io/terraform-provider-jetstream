@@ -42,7 +42,7 @@ A locked down user that can only admin JetStream but not retrieve any data store
 │ Expires              │ 2020-04-11 10:37:29 UTC                                  │
 +----------------------+----------------------------------------------------------+
 | Pub Allow            | $JS.API.CONSUMER.DELETE.*.*                              |
-|                      | $JS.API.CONSUMER.DURABLE.CREATE.*.*                      |
+|                      | $JS.API.CONSUMER.CREATE.>                                |
 |                      | $JS.API.CONSUMER.INFO.*.*                                |
 |                      | $JS.API.CONSUMER.LIST.*                                  |
 |                      | $JS.API.CONSUMER.NAMES.*                                 |
@@ -72,7 +72,7 @@ $ nsc add user -a DemoAccount
 --expiry 1M \
 --name ngs_jetstream_admin \
 --allow-pub '$JS.API.CONSUMER.DELETE.*.*' \
---allow-pub '$JS.API.CONSUMER.DURABLE.CREATE.*.*' \
+--allow-pub '$JS.API.CONSUMER.CREATE.>' \
 --allow-pub '$JS.API.CONSUMER.INFO.*.*' \
 --allow-pub '$JS.API.CONSUMER.LIST.*' \
 --allow-pub '$JS.API.CONSUMER.NAMES.*' \
