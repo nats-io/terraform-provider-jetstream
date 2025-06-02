@@ -1,4 +1,4 @@
-# jetstream_stream Resource
+# jetstream_consumer Resource
 
 The `jetstream_consumer` Resource creates, updates or deletes JetStream Consumers on any Terraform managed Stream.
 
