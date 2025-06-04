@@ -14,6 +14,7 @@
 package jetstream
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -105,7 +106,7 @@ func resourceKVEntryRead(d *schema.ResourceData, m any) error {
 	}
 	kv, err := js.KeyValue(bucket)
 	if err != nil {
-		if err == nats.ErrBucketNotFound {
+		if errors.Is(err, nats.ErrBucketNotFound) {
 			d.SetId("")
 			return nil
 		}
@@ -113,7 +114,7 @@ func resourceKVEntryRead(d *schema.ResourceData, m any) error {
 	}
 	entry, err := kv.Get(key)
 	if err != nil {
-		if err == nats.ErrKeyNotFound {
+		if errors.Is(err, nats.ErrKeyNotFound) {
 			d.SetId("")
 			return nil
 		}

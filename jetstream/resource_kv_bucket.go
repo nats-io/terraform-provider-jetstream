@@ -320,7 +320,7 @@ func resourceKVBucketDelete(d *schema.ResourceData, m any) error {
 		return err
 	}
 	err = js.DeleteKeyValue(name)
-	if err == nats.ErrStreamNotFound {
+	if errors.Is(err, nats.ErrStreamNotFound) {
 		return nil
 	} else if err != nil {
 		return err
