@@ -202,7 +202,7 @@ func resourceKVBucketRead(d *schema.ResourceData, m any) error {
 
 	bucket, err := js.KeyValue(ctx, name)
 	if err != nil {
-		if err == nats.ErrBucketNotFound {
+		if errors.Is(err, jetstream.ErrBucketNotFound) {
 			d.SetId("")
 			return nil
 		}

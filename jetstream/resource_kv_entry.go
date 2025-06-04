@@ -15,11 +15,11 @@ package jetstream
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
@@ -114,7 +114,7 @@ func resourceKVEntryRead(d *schema.ResourceData, m any) error {
 
 	kv, err := js.KeyValue(ctx, bucket)
 	if err != nil {
-		if err == nats.ErrBucketNotFound {
+		if errors.Is(err, jetstream.ErrBucketNotFound) {
 			d.SetId("")
 			return nil
 		}
@@ -123,7 +123,7 @@ func resourceKVEntryRead(d *schema.ResourceData, m any) error {
 
 	entry, err := kv.Get(ctx, key)
 	if err != nil {
-		if err == nats.ErrKeyNotFound {
+		if errors.Is(err, jetstream.ErrKeyNotFound) {
 			d.SetId("")
 			return nil
 		}
