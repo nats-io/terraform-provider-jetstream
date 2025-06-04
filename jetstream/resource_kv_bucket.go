@@ -202,7 +202,7 @@ func resourceKVBucketRead(d *schema.ResourceData, m any) error {
 
 	bucket, err := js.KeyValue(ctx, name)
 	if err != nil {
-		if err == nats.ErrBucketNotFound {
+		if errors.Is(err, jetstream.ErrBucketNotFound) {
 			d.SetId("")
 			return nil
 		}
@@ -315,11 +315,14 @@ func resourceKVBucketDelete(d *schema.ResourceData, m any) error {
 	}
 	defer nc.Close()
 
-	js, err := nc.JetStream()
+	js, err := jetstream.New(nc)
 	if err != nil {
 		return err
 	}
-	err = js.DeleteKeyValue(name)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	err = js.DeleteKeyValue(ctx, name)
 	if err == nats.ErrStreamNotFound {
 		return nil
 	} else if err != nil {

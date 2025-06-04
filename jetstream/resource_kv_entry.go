@@ -14,10 +14,13 @@
 package jetstream
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 func resourceKVEntry() *schema.Resource {
@@ -69,15 +72,18 @@ func resourceKVEntryCreate(d *schema.ResourceData, m any) error {
 	key := d.Get("key").(string)
 	value := d.Get("value").(string)
 
-	js, err := nc.JetStream()
+	js, err := jetstream.New(nc)
 	if err != nil {
 		return err
 	}
-	kv, err := js.KeyValue(bucket)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	kv, err := js.KeyValue(ctx, bucket)
 	if err != nil {
 		return err
 	}
-	_, err = kv.Put(key, []byte(value))
+	_, err = kv.Put(ctx, key, []byte(value))
 	if err != nil {
 		return err
 	}
@@ -99,11 +105,14 @@ func resourceKVEntryRead(d *schema.ResourceData, m any) error {
 	}
 	defer nc.Close()
 
-	js, err := nc.JetStream()
+	js, err := jetstream.New(nc)
 	if err != nil {
 		return err
 	}
-	kv, err := js.KeyValue(bucket)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	kv, err := js.KeyValue(ctx, bucket)
 	if err != nil {
 		if err == nats.ErrBucketNotFound {
 			d.SetId("")
@@ -111,7 +120,8 @@ func resourceKVEntryRead(d *schema.ResourceData, m any) error {
 		}
 		return err
 	}
-	entry, err := kv.Get(key)
+
+	entry, err := kv.Get(ctx, key)
 	if err != nil {
 		if err == nats.ErrKeyNotFound {
 			d.SetId("")
@@ -137,11 +147,14 @@ func resourceKVEntryUpdate(d *schema.ResourceData, m any) error {
 	}
 	defer nc.Close()
 
-	js, err := nc.JetStream()
+	js, err := jetstream.New(nc)
 	if err != nil {
 		return err
 	}
-	kv, err := js.KeyValue(bucket)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	kv, err := js.KeyValue(ctx, bucket)
 	if err != nil {
 		return err
 	}
@@ -149,7 +162,7 @@ func resourceKVEntryUpdate(d *schema.ResourceData, m any) error {
 	key := d.Get("key").(string)
 	value := d.Get("value").(string)
 
-	_, err = kv.Put(key, []byte(value))
+	_, err = kv.Put(ctx, key, []byte(value))
 	if err != nil {
 		return err
 	}
@@ -166,15 +179,18 @@ func resourceKVEntryDelete(d *schema.ResourceData, m any) error {
 	}
 	defer nc.Close()
 
-	js, err := nc.JetStream()
+	js, err := jetstream.New(nc)
 	if err != nil {
 		return err
 	}
-	kv, err := js.KeyValue(bucket)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	kv, err := js.KeyValue(ctx, bucket)
 	if err != nil {
 		return err
 	}
-	err = kv.Delete(d.Get("key").(string))
+	err = kv.Delete(ctx, d.Get("key").(string))
 	if err != nil {
 		return err
 	}
