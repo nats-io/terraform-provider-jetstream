@@ -14,14 +14,17 @@
 package jetstream
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 const testKVEntry_basic = `
@@ -59,22 +62,24 @@ func TestResourceKVEntry(t *testing.T) {
 		t.Fatalf("could not connect: %s", err)
 	}
 
-	js, err := nc.JetStream()
+	js, err := jetstream.New(nc)
 	if err != nil {
 		t.Fatalf("could not connect: %s", err)
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	updateBasicConfig := strings.ReplaceAll(testKVEntry_basic, "bar", "baz")
 
 	resource.Test(t, resource.TestCase{
 		ProviderFactories: testJsProviders,
-		CheckDestroy:      testEntryDoesNotExist(t, js, "TEST", "foo"),
+		CheckDestroy:      testEntryDoesNotExist(ctx, t, js, "TEST", "foo"),
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(testKVEntry_basic, nc.ConnectedUrl()),
 				Check: resource.ComposeTestCheckFunc(
 					testBucketExist(t, mgr, "TEST"),
-					testEntryExist(t, js, "TEST", "foo"),
+					testEntryExist(ctx, t, js, "TEST", "foo"),
 					resource.TestCheckResourceAttr("jetstream_kv_entry.test_entry", "bucket", "TEST"),
 					resource.TestCheckResourceAttr("jetstream_kv_entry.test_entry", "key", "foo"),
 					resource.TestCheckResourceAttr("jetstream_kv_entry.test_entry", "value", "bar"),
@@ -85,7 +90,7 @@ func TestResourceKVEntry(t *testing.T) {
 				Config: fmt.Sprintf(updateBasicConfig, nc.ConnectedUrl()),
 				Check: resource.ComposeTestCheckFunc(
 					testBucketExist(t, mgr, "TEST"),
-					testEntryExist(t, js, "TEST", "foo"),
+					testEntryExist(ctx, t, js, "TEST", "foo"),
 					resource.TestCheckResourceAttr("jetstream_kv_entry.test_entry", "bucket", "TEST"),
 					resource.TestCheckResourceAttr("jetstream_kv_entry.test_entry", "key", "foo"),
 					resource.TestCheckResourceAttr("jetstream_kv_entry.test_entry", "value", "baz"),
@@ -96,9 +101,9 @@ func TestResourceKVEntry(t *testing.T) {
 	})
 }
 
-func testEntryDoesNotExist(t *testing.T, js nats.JetStreamContext, bucket string, key string) resource.TestCheckFunc {
+func testEntryDoesNotExist(ctx context.Context, t *testing.T, js jetstream.JetStream, bucket string, key string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		err := testEntryExist(t, js, bucket, key)
+		err := testEntryExist(ctx, t, js, bucket, key)
 		if err == nil {
 			return fmt.Errorf("expected entry %q in bucket %q to not exist", key, bucket)
 		}
@@ -107,18 +112,132 @@ func testEntryDoesNotExist(t *testing.T, js nats.JetStreamContext, bucket string
 	}
 }
 
-func testEntryExist(t *testing.T, js nats.JetStreamContext, bucket string, key string) resource.TestCheckFunc {
+func testEntryExist(ctx context.Context, t *testing.T, js jetstream.JetStream, bucket string, key string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		kv, err := js.KeyValue(bucket)
+		kv, err := js.KeyValue(ctx, bucket)
 		if err != nil {
 			return err
 		}
 
-		_, err = kv.Get(key)
+		_, err = kv.Get(ctx, key)
 		if err != nil {
 			return err
 		}
 
 		return nil
 	}
+}
+
+func TestResourceKVEntryExternalDeletion(t *testing.T) {
+	srv := createJSServer(t)
+	defer srv.Shutdown()
+
+	nc, err := nats.Connect(srv.ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	js, err := jetstream.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	resource.Test(t, resource.TestCase{
+		ProviderFactories: testJsProviders,
+		CheckDestroy:      testEntryDoesNotExist(ctx, t, js, "TEST", "foo"),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(testKVEntry_basic, nc.ConnectedUrl()),
+				Check: resource.ComposeTestCheckFunc(
+					testBucketExist(t, mgr, "TEST"),
+					testEntryExist(ctx, t, js, "TEST", "foo"),
+					resource.TestCheckResourceAttr("jetstream_kv_entry.test_entry", "key", "foo"),
+					resource.TestCheckResourceAttr("jetstream_kv_entry.test_entry", "value", "bar"),
+				),
+			},
+			{
+				Config: fmt.Sprintf(testKVEntry_basic, nc.ConnectedUrl()),
+				PreConfig: func() {
+					kv, err := js.KeyValue(ctx, "TEST")
+					if err != nil {
+						t.Fatalf("failed to get bucket for external deletion: %s", err)
+					}
+					err = kv.Delete(ctx, "foo")
+					if err != nil {
+						t.Fatalf("failed to externally delete entry: %s", err)
+					}
+				},
+				Check: resource.ComposeTestCheckFunc(
+					testBucketExist(t, mgr, "TEST"),
+					testEntryExist(ctx, t, js, "TEST", "foo"),
+					resource.TestCheckResourceAttr("jetstream_kv_entry.test_entry", "key", "foo"),
+					resource.TestCheckResourceAttr("jetstream_kv_entry.test_entry", "value", "bar"),
+				),
+			},
+		},
+	})
+}
+
+func TestResourceKVEntryBucketExternalDeletion(t *testing.T) {
+	srv := createJSServer(t)
+	defer srv.Shutdown()
+
+	nc, err := nats.Connect(srv.ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	js, err := jetstream.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	resource.Test(t, resource.TestCase{
+		ProviderFactories: testJsProviders,
+		CheckDestroy:      testEntryDoesNotExist(ctx, t, js, "TEST", "foo"),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(testKVEntry_basic, nc.ConnectedUrl()),
+				Check: resource.ComposeTestCheckFunc(
+					testBucketExist(t, mgr, "TEST"),
+					testEntryExist(ctx, t, js, "TEST", "foo"),
+					resource.TestCheckResourceAttr("jetstream_kv_entry.test_entry", "key", "foo"),
+					resource.TestCheckResourceAttr("jetstream_kv_entry.test_entry", "value", "bar"),
+				),
+			},
+			{
+				Config: fmt.Sprintf(testKVEntry_basic, nc.ConnectedUrl()),
+				PreConfig: func() {
+					err := js.DeleteKeyValue(ctx, "TEST")
+					if err != nil {
+						t.Fatalf("failed to externally delete bucket: %s", err)
+					}
+				},
+				Check: resource.ComposeTestCheckFunc(
+					testBucketExist(t, mgr, "TEST"),
+					testEntryExist(ctx, t, js, "TEST", "foo"),
+					resource.TestCheckResourceAttr("jetstream_kv_entry.test_entry", "key", "foo"),
+					resource.TestCheckResourceAttr("jetstream_kv_entry.test_entry", "value", "bar"),
+				),
+			},
+		},
+	})
 }

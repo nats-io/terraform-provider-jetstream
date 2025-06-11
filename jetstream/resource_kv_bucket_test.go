@@ -14,13 +14,16 @@
 package jetstream
 
 import (
+	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 const testKV_basic = `
@@ -97,4 +100,54 @@ func testBucketExist(t *testing.T, mgr *jsm.Manager, bucket string) resource.Tes
 
 		return nil
 	}
+}
+
+func TestResourceKVExternalDeletion(t *testing.T) {
+	srv := createJSServer(t)
+	defer srv.Shutdown()
+
+	nc, err := nats.Connect(srv.ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	js, err := jetstream.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	resource.Test(t, resource.TestCase{
+		ProviderFactories: testJsProviders,
+		CheckDestroy:      testBucketDoesNotExist(t, mgr, "TEST"),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(testKV_basic, nc.ConnectedUrl()),
+				Check: resource.ComposeTestCheckFunc(
+					testBucketExist(t, mgr, "TEST"),
+					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "name", "TEST"),
+				),
+			},
+			{
+				Config: fmt.Sprintf(testKV_basic, nc.ConnectedUrl()),
+				PreConfig: func() {
+					err := js.DeleteKeyValue(ctx, "TEST")
+					if err != nil {
+						t.Fatalf("failed to externally delete bucket: %s", err)
+					}
+				},
+				Check: resource.ComposeTestCheckFunc(
+					testBucketExist(t, mgr, "TEST"),
+					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "name", "TEST"),
+				),
+			},
+		},
+	})
 }
