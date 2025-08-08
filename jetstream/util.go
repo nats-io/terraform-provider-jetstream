@@ -580,3 +580,12 @@ func connectMgr(d *schema.ResourceData) (any, error) {
 		return nc, mgr, err
 	}, nil
 }
+
+func apiLevel(mgr *jsm.Manager) (uint, error) {
+	apiLevel, err := mgr.MetaApiLevel(true)
+	if err != nil {
+		return 0, err
+	}
+
+	return uint(apiLevel), nil
+}

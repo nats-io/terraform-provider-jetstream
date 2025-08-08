@@ -234,6 +234,26 @@ resource "jetstream_consumer" "maqs-e" {
   replicas                 = 1
 }`
 
+const testPriorityGroups = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_stream" "test" {
+  name     = "TEST"
+  subjects = ["test.>"]
+}
+
+resource "jetstream_consumer" "pgroup" {
+  stream_id                = jetstream_stream.test.id
+  deliver_all              = true
+  durable_name             = "pgroup"
+  max_batch                = 1
+  priority_groups          = ["a", "b", "c"]
+  priority_timeout         = 20
+  priority_policy          = "pinned_client"
+}`
+
 func TestFilterSubjects(t *testing.T) {
 	srv := createJSServer(t)
 	defer srv.Shutdown()
@@ -368,6 +388,18 @@ func TestResourceConsumer(t *testing.T) {
 			{
 				Config:      fmt.Sprintf(testConsumerMaxRequestBatchPedantic, nc.ConnectedUrl()),
 				ExpectError: regexp.MustCompile(`consumer max request batch exceeds server limit of 1 \(10125\)`),
+			},
+			{
+				Config: fmt.Sprintf(testPriorityGroups, nc.ConnectedUrl()),
+				Check: resource.ComposeTestCheckFunc(
+					testStreamExist(t, mgr, "TEST"),
+					testConsumerExist(t, mgr, "TEST", "pgroup"),
+					resource.TestCheckResourceAttr("jetstream_consumer.pgroup", "priority_groups.0", "a"),
+					resource.TestCheckResourceAttr("jetstream_consumer.pgroup", "priority_groups.1", "b"),
+					resource.TestCheckResourceAttr("jetstream_consumer.pgroup", "priority_groups.2", "c"),
+					resource.TestCheckResourceAttr("jetstream_consumer.pgroup", "priority_policy", "pinned_client"),
+					resource.TestCheckResourceAttr("jetstream_consumer.pgroup", "priority_timeout", "20"),
+				),
 			},
 		},
 	})

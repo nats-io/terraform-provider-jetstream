@@ -231,6 +231,9 @@ resource "jetstream_consumer" "ORDERS_NEW" {
  * `republish_source` - (optional) Republish matching messages to `republish_destination`
  * `republish_destination` - (optional) The destination to publish messages to
  * `republish_headers_only` - (optional) Republish only message headers, no bodies
+ * `priority_policy` - (optional) The priority policy the consumer is set to. Valid options are `none`, `overflow`, `pinned_client` and `prioritized`
+ * `priority_groups` - (optional) List of priority groups this consumer supports
+ * `priority_timeout` - (optional) For pinned_client priority policy how long before the client times out
 
 ## jetstream_kv_bucket
 

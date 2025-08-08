@@ -14,6 +14,7 @@
 package jetstream
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -271,11 +272,60 @@ func resourceConsumer() *schema.Resource {
 					Type: schema.TypeInt,
 				},
 			},
+			"priority_policy": {
+				Type:         schema.TypeString,
+				Description:  "The priority policy the consumer is set to",
+				Optional:     true,
+				Default:      "none",
+				ValidateFunc: validation.StringInSlice([]string{"none", "overflow", "pinned_client", "prioritized"}, false),
+				ForceNew:     true,
+			},
+			"priority_groups": {
+				Type:        schema.TypeList,
+				Description: "List of priority groups this consumer supports",
+				Optional:    true,
+				ForceNew:    true,
+				Elem:        &schema.Schema{Type: schema.TypeString},
+			},
+			"priority_timeout": {
+				Type:        schema.TypeInt,
+				Description: "For pinned_client priority policy how long before the client times out",
+				Default:     0,
+				Optional:    true,
+				ForceNew:    true,
+			},
+		},
+		CustomizeDiff: func(ctx context.Context, d *schema.ResourceDiff, meta any) error {
+			if !d.NewValueKnown("priority_policy") || !d.NewValueKnown("priority_groups") || !d.NewValueKnown("priority_timeout") {
+				return nil
+			}
+
+			policy := d.Get("priority_policy").(string)
+			timeout := d.Get("priority_timeout").(int)
+			groupsLen := 0
+			if v, ok := d.GetOk("priority_groups"); ok && v != nil {
+				groupsLen = len(v.([]any))
+			}
+
+			if policy != "none" && groupsLen == 0 {
+				return fmt.Errorf("setting a priority_policy other than `none` requires priority_groups to be set")
+			}
+
+			if groupsLen != 0 && policy == "none" {
+				return fmt.Errorf("setting priority_groups requires a priority_policy to be set and not be 'none'")
+			}
+
+			if timeout != 0 && policy != "pinned_client" {
+				return fmt.Errorf("setting priority_timeout requires priority_policy to be set to 'pinned_client'")
+			}
+
+			return nil
 		},
 	}
 }
 
-func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerConfig, err error) {
+func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerConfig, requiredApiLevel uint, err error) {
+	requiredApiLevel = 1
 	cfg = api.ConsumerConfig{
 		Durable:            d.Get("durable_name").(string),
 		Name:               d.Get("durable_name").(string),
@@ -334,7 +384,7 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 	case st != "":
 		ts, err := time.Parse(time.RFC3339, st)
 		if err != nil {
-			return api.ConsumerConfig{}, err
+			return api.ConsumerConfig{}, requiredApiLevel, err
 		}
 		cfg.DeliverPolicy = api.DeliverByStartTime
 		cfg.OptStartTime = &ts
@@ -372,9 +422,9 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 		}
 	}
 
-	m, ok := d.GetOk("metadata")
+	metadata, ok := d.GetOk("metadata")
 	if ok {
-		mt, ok := m.(map[string]any)
+		mt, ok := metadata.(map[string]any)
 		if ok {
 			meta := map[string]string{}
 			for k, v := range mt {
@@ -382,16 +432,42 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 			}
 			cfg.Metadata = jsm.FilterServerMetadata(meta)
 		} else {
-			return api.ConsumerConfig{}, fmt.Errorf("invalid metadata")
+			return api.ConsumerConfig{}, requiredApiLevel, fmt.Errorf("invalid metadata")
 		}
+	}
+
+	priorityPolicy := d.Get("priority_policy").(string)
+	switch priorityPolicy {
+	case "none":
+		cfg.PriorityPolicy = api.PriorityNone
+	case "overflow":
+		cfg.PriorityPolicy = api.PriorityOverflow
+	case "pinned_client":
+		cfg.PriorityPolicy = api.PriorityPinnedClient
+	case "prioritized":
+		cfg.PriorityPolicy = api.PriorityPrioritized
+		requiredApiLevel = 2
+	}
+
+	if v, ok := d.GetOk("priority_groups"); ok {
+		raw := v.([]any)
+		cfg.PriorityGroups = make([]string, len(raw))
+		for i, val := range raw {
+			cfg.PriorityGroups[i] = val.(string)
+		}
+	}
+
+	pinnedTTL, ok := d.GetOk("priority_timeout")
+	if ok {
+		cfg.PinnedTTL = time.Duration(pinnedTTL.(int)) * time.Second
 	}
 
 	ok, errs := cfg.Validate(new(SchemaValidator))
 	if !ok {
-		return api.ConsumerConfig{}, errors.New(strings.Join(errs, ", "))
+		return api.ConsumerConfig{}, requiredApiLevel, errors.New(strings.Join(errs, ", "))
 	}
 
-	return cfg, nil
+	return cfg, requiredApiLevel, nil
 }
 
 func resourceConsumerUpdate(d *schema.ResourceData, m any) error {
@@ -425,9 +501,17 @@ func resourceConsumerUpdate(d *schema.ResourceData, m any) error {
 		return nil
 	}
 
-	cfg, err := consumerConfigFromResourceData(d)
+	cfg, requiredApiLevel, err := consumerConfigFromResourceData(d)
 	if err != nil {
 		return err
+	}
+
+	level, err := apiLevel(mgr)
+	if err != nil {
+		return err
+	}
+	if level < requiredApiLevel {
+		return fmt.Errorf("unsupported api level: %d. Requires NATS API level %d or newer", level, requiredApiLevel)
 	}
 
 	// We call NewconsumerFromDefault because of the idempotent way consumers are created/updated
@@ -441,7 +525,7 @@ func resourceConsumerUpdate(d *schema.ResourceData, m any) error {
 }
 
 func resourceConsumerCreate(d *schema.ResourceData, m any) error {
-	cfg, err := consumerConfigFromResourceData(d)
+	cfg, requiredApiLevel, err := consumerConfigFromResourceData(d)
 	if err != nil {
 		return err
 	}
@@ -456,6 +540,14 @@ func resourceConsumerCreate(d *schema.ResourceData, m any) error {
 		return err
 	}
 	defer nc.Close()
+
+	level, err := apiLevel(mgr)
+	if err != nil {
+		return err
+	}
+	if level < requiredApiLevel {
+		return fmt.Errorf("unsupported api level: %d. Requires NATS API level %d or newer", level, requiredApiLevel)
+	}
 
 	_, err = mgr.NewConsumerFromDefault(stream, cfg)
 	if err != nil {
@@ -526,6 +618,8 @@ func resourceConsumerRead(d *schema.ResourceData, m any) error {
 	d.Set("replicas", cons.Replicas())
 	d.Set("memory", cons.MemoryStorage())
 	d.Set("inactive_threshold", cons.InactiveThreshold().Seconds())
+	d.Set("priority_groups", cons.PriorityGroups())
+	d.Set("priority_timeout", cons.Configuration().PinnedTTL.Seconds())
 
 	switch cons.DeliverPolicy() {
 	case api.DeliverAll:
@@ -572,6 +666,17 @@ func resourceConsumerRead(d *schema.ResourceData, m any) error {
 		d.Set("ack_policy", "all")
 	case api.AckNone:
 		d.Set("ack_policy", "none")
+	}
+
+	switch cons.PriorityPolicy() {
+	case api.PriorityNone:
+		d.Set("priority_policy", "none")
+	case api.PriorityOverflow:
+		d.Set("priority_policy", "overflow")
+	case api.PriorityPinnedClient:
+		d.Set("priority_policy", "pinned_client")
+	case api.PriorityPrioritized:
+		d.Set("priority_policy", "prioritized")
 	}
 
 	var bo []any
