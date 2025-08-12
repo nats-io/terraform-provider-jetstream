@@ -334,12 +334,18 @@ func resourceStream() *schema.Resource {
 				ForceNew:    false,
 				Optional:    true,
 			},
+			"allow_msg_counter": {
+				Type:        schema.TypeBool,
+				Description: "Enables distributed counter mode for the stream",
+				ForceNew:    true,
+				Optional:    true,
+			},
 		},
 	}
 }
 
 func resourceStreamCreate(d *schema.ResourceData, m any) error {
-	cfg, err := streamConfigFromResourceData(d)
+	cfg, requiredApiLevel, err := streamConfigFromResourceData(d)
 	if err != nil {
 		return err
 	}
@@ -349,6 +355,14 @@ func resourceStreamCreate(d *schema.ResourceData, m any) error {
 		return err
 	}
 	defer nc.Close()
+
+	level, err := apiLevel(mgr)
+	if err != nil {
+		return err
+	}
+	if level < requiredApiLevel {
+		return fmt.Errorf("unsupported api level: %d. Requires NATS API level %d or newer", level, requiredApiLevel)
+	}
 
 	_, err = mgr.NewStreamFromDefault(cfg.Name, cfg)
 	if err != nil {
@@ -415,6 +429,7 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 	d.Set("inactive_threshold", str.ConsumerLimits().InactiveThreshold)
 	d.Set("allow_msg_ttl", str.AllowMsgTTL())
 	d.Set("subject_delete_marker_ttl", str.SubjectDeleteMarkerTTL().Seconds())
+	d.Set("allow_msg_counter", str.CounterAllowed())
 
 	if transform := str.Configuration().SubjectTransform; transform != nil {
 		d.Set("subject_transform", []map[string]string{
@@ -536,9 +551,17 @@ func resourceStreamUpdate(d *schema.ResourceData, m any) error {
 		return err
 	}
 
-	cfg, err := streamConfigFromResourceData(d)
+	cfg, requiredApiLevel, err := streamConfigFromResourceData(d)
 	if err != nil {
 		return err
+	}
+
+	level, err := apiLevel(mgr)
+	if err != nil {
+		return err
+	}
+	if level < requiredApiLevel {
+		return fmt.Errorf("unsupported api level: %d. Requires NATS API level %d or newer", level, requiredApiLevel)
 	}
 
 	err = str.UpdateConfiguration(cfg)
