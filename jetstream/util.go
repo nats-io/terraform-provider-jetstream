@@ -160,7 +160,7 @@ func streamSourceFromResourceData(d any) ([]*api.StreamSource, error) {
 	return res, nil
 }
 
-func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig, err error) {
+func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig, requiredAPILevel uint, err error) {
 	var retention api.RetentionPolicy
 	var storage api.StorageType
 	var discard api.DiscardPolicy
@@ -278,10 +278,10 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 	if ok {
 		sources, err := streamSourceFromResourceData(mirror)
 		if err != nil {
-			return api.StreamConfig{}, err
+			return api.StreamConfig{}, requiredAPILevel, err
 		}
 		if len(sources) != 1 {
-			return api.StreamConfig{}, fmt.Errorf("expected exactly one mirror source")
+			return api.StreamConfig{}, requiredAPILevel, fmt.Errorf("expected exactly one mirror source")
 		}
 		stream.Mirror = sources[0]
 		mirrorDirect, ok := d.GetOk("mirror_direct")
@@ -294,19 +294,19 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 	if ok {
 		sources, err := streamSourceFromResourceData(ss)
 		if err != nil {
-			return api.StreamConfig{}, err
+			return api.StreamConfig{}, requiredAPILevel, err
 		}
 		stream.Sources = sources
 	}
 
 	if stream.Mirror != nil {
 		if len(stream.Sources) > 0 {
-			return api.StreamConfig{}, fmt.Errorf("only one of sources and mirror may be specified")
+			return api.StreamConfig{}, requiredAPILevel, fmt.Errorf("only one of sources and mirror may be specified")
 		}
 	}
 
 	if len(stream.Subjects) == 0 && stream.Mirror == nil && len(stream.Sources) == 0 {
-		return api.StreamConfig{}, fmt.Errorf("subjects are required for streams without mirrors or sources")
+		return api.StreamConfig{}, requiredAPILevel, fmt.Errorf("subjects are required for streams without mirrors or sources")
 	}
 
 	m, ok := d.GetOk("metadata")
@@ -319,7 +319,7 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 			}
 			stream.Metadata = jsm.FilterServerMetadata(meta)
 		} else {
-			return api.StreamConfig{}, fmt.Errorf("invalid metadata")
+			return api.StreamConfig{}, requiredAPILevel, fmt.Errorf("invalid metadata")
 		}
 	}
 
@@ -333,12 +333,30 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		stream.ConsumerLimits.InactiveThreshold = time.Second * time.Duration(inactive_threshold.(int))
 	}
 
-	ok, errs := stream.Validate(new(SchemaValidator))
-	if !ok {
-		return api.StreamConfig{}, errors.New(strings.Join(errs, ", "))
+	stream.AllowMsgCounter = d.Get("allow_msg_counter").(bool)
+
+	if stream.AllowMsgCounter {
+		requiredAPILevel = 2
+		if stream.Retention != api.LimitsPolicy {
+			return api.StreamConfig{}, requiredAPILevel, fmt.Errorf("allow_msg_counter requires retention to be 'limits'")
+		}
+		if stream.Discard == api.DiscardNew {
+			return api.StreamConfig{}, requiredAPILevel, fmt.Errorf("allow_msg_counter may not be used with 'discard = new'")
+		}
+		if stream.AllowMsgTTL {
+			return api.StreamConfig{}, requiredAPILevel, fmt.Errorf("allow_msg_counter may not be used with per-message TTL")
+		}
+		if stream.Mirror != nil {
+			return api.StreamConfig{}, requiredAPILevel, fmt.Errorf("allow_msg_counter may not be enabled on mirrored streams")
+		}
 	}
 
-	return stream, nil
+	ok, errs := stream.Validate(new(SchemaValidator))
+	if !ok {
+		return api.StreamConfig{}, requiredAPILevel, errors.New(strings.Join(errs, ", "))
+	}
+
+	return stream, requiredAPILevel, nil
 }
 
 func newTempPEMFile(pemContents string) (filename string, cleanup func(), err error) {

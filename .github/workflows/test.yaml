@@ -24,6 +24,7 @@ jobs:
           go-version: ${{matrix.go}}
 
       - name: Lint
+        if: matrix.go == '1.24'
         shell: bash
         run: |
           go install honnef.co/go/tools/cmd/staticcheck@latest

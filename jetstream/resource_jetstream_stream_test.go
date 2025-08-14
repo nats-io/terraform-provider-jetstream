@@ -228,6 +228,17 @@ resource "jetstream_stream" "pedantic_mirror" {
 }
 `
 
+const allowMsgCounter = `
+provider "jetstream" {
+	servers = "%s"
+}
+resource "jetstream_stream" "allow_msg_counter" {
+  name              = "allow_msg_counter"
+  subjects          = ["ALLOW_MESSAGE_COUNTER.*"]
+  allow_msg_counter = true
+}
+`
+
 func TestResourceStream(t *testing.T) {
 	srv := createJSServer(t)
 	defer srv.Shutdown()
@@ -347,6 +358,13 @@ func TestResourceStream(t *testing.T) {
 			{
 				Config:      fmt.Sprintf(pedanticMirrorDirect, nc.ConnectedUrl()),
 				ExpectError: regexp.MustCompile(`origin stream has direct get set, mirror has it disabled \(10157\)`),
+			},
+			{
+				Config: fmt.Sprintf(allowMsgCounter, nc.ConnectedUrl()),
+				Check: resource.ComposeTestCheckFunc(
+					testStreamExist(t, mgr, "allow_msg_counter"),
+					resource.TestCheckResourceAttr("jetstream_stream.allow_msg_counter", "allow_msg_counter", "true"),
+				),
 			},
 		},
 	})

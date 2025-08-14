@@ -234,6 +234,7 @@ resource "jetstream_consumer" "ORDERS_NEW" {
  * `priority_policy` - (optional) The priority policy the consumer is set to. Valid options are `none`, `overflow`, `pinned_client` and `prioritized`
  * `priority_groups` - (optional) List of priority groups this consumer supports
  * `priority_timeout` - (optional) For pinned_client priority policy how long before the client times out
+  * `allow_msg_counter` - (optional) Enables distributed counter mode for the stream. This field can only be set if `retention` is set to `limits`, `discard` is not `new`, `allow_msg_ttl` is false and the stream is not a `mirror`.
 
 ## jetstream_kv_bucket
 
