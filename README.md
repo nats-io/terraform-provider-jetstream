@@ -147,6 +147,8 @@ resource "jetstream_stream" "TRANSFORM" {
  * `description` - (optional) Contains additional information about this stream (string)
  * `metadata` - (optional) A map of strings with arbitrary metadata for the stream
  * `ack` - (optional) If the Stream should support confirming receiving messages via acknowledgements (bool)
+ * `discard` - (optional) When a Stream reach it's limits either old messages are deleted or new ones are denied (`new` or `old`)
+ * `discard_new_per_subject` - (optional) When discard policy is new and the stream is one with max messages per subject set, this will apply the new behavior to every subject. Essentially turning discard new from maximum number of subjects into maximum number of messages in a subject (bool)
  * `max_age` - (optional) The maximum oldest message that can be kept in the stream, duration specified in seconds (number)
  * `max_bytes` - (optional) The maximum size of all messages that can be kept in the stream (number)
  * `compression` - (optional) Enable stream compression by setting the value to `s2`
@@ -169,8 +171,16 @@ resource "jetstream_stream" "TRANSFORM" {
  * `allow_rollup_hdrs` - (optional) Allows the use of the Nats-Rollup header to replace all contents of a stream, or subject in a stream, with a single new message (bool)
  * `allow_direct` - (optional) Allow higher performance, direct access to get individual messages via the $JS.DS.GET API (bool)
  * `subject_transform` - (optional) A map of source and destination subjects to transform.
+ * `republish_source` - (optional) Republish matching messages to `republish_destination`
+ * `republish_destination` - (optional) The destination to publish messages to
+ * `republish_headers_only` - (optional) Republish only message headers, no bodies
+ * `inactive_threshold` - (optional) Removes the consumer after a idle period, specified as a duration in seconds
+ * `max_ack_pending` - (optional) Maximum pending Acks before consumers are paused
  * `allow_msg_ttl` - (optional) Enables Per Message TTLs
  * `subject_delete_marker_ttl` - (optional) Enables placing markers when Max Age removes messages, duration specified in seconds. This field requires `allow_rollup_hdrs` to be set to true. (number)
+ * `mirror_direct` - (optional) If true, and the stream is a mirror, the mirror will participate in a serving direct get requests for individual messages from origin stream
+ * `allow_msg_counter` - (optional) Enables distributed counter mode for the stream. This field can only be set if `retention` is set to `limits`, `discard` is not `new`, `allow_msg_ttl` is false and the stream is not a `mirror`.
+ * `allow_atomic` - (optional) Enables atomic batch publishes
 
 ## jetstream_consumer
 
@@ -234,7 +244,7 @@ resource "jetstream_consumer" "ORDERS_NEW" {
  * `priority_policy` - (optional) The priority policy the consumer is set to. Valid options are `none`, `overflow`, `pinned_client` and `prioritized`
  * `priority_groups` - (optional) List of priority groups this consumer supports
  * `priority_timeout` - (optional) For pinned_client priority policy how long before the client times out
-  * `allow_msg_counter` - (optional) Enables distributed counter mode for the stream. This field can only be set if `retention` is set to `limits`, `discard` is not `new`, `allow_msg_ttl` is false and the stream is not a `mirror`.
+
 
 ## jetstream_kv_bucket
 

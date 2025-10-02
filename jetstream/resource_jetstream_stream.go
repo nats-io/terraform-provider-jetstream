@@ -340,6 +340,12 @@ func resourceStream() *schema.Resource {
 				ForceNew:    true,
 				Optional:    true,
 			},
+			"allow_atomic": {
+				Type:        schema.TypeBool,
+				Description: "Allow atomic batched publishes",
+				ForceNew:    true,
+				Optional:    true,
+			},
 		},
 	}
 }
@@ -430,6 +436,7 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 	d.Set("allow_msg_ttl", str.AllowMsgTTL())
 	d.Set("subject_delete_marker_ttl", str.SubjectDeleteMarkerTTL().Seconds())
 	d.Set("allow_msg_counter", str.CounterAllowed())
+	d.Set("allow_atomic", str.AtomicBatchPublishAllowed())
 
 	if transform := str.Configuration().SubjectTransform; transform != nil {
 		d.Set("subject_transform", []map[string]string{
