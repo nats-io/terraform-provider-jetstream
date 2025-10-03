@@ -99,7 +99,7 @@ func resourceKVBucket() *schema.Resource {
 				Description:  "Number of cluster replicas to store",
 				Default:      1,
 				Optional:     true,
-				ForceNew:     true,
+				ForceNew:     false,
 				ValidateFunc: validation.All(validation.IntAtLeast(1), validation.IntAtMost(5)),
 			},
 			"limit_marker_ttl": {
