@@ -351,6 +351,11 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		}
 	}
 
+	stream.AllowAtomicPublish = d.Get("allow_atomic").(bool)
+	if stream.AllowAtomicPublish {
+		requiredAPILevel = 2
+	}
+
 	ok, errs := stream.Validate(new(SchemaValidator))
 	if !ok {
 		return api.StreamConfig{}, requiredAPILevel, errors.New(strings.Join(errs, ", "))

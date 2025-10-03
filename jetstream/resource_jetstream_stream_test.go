@@ -239,6 +239,17 @@ resource "jetstream_stream" "allow_msg_counter" {
 }
 `
 
+const allowAtomic = `
+provider "jetstream" {
+	servers = "%s"
+}
+resource "jetstream_stream" "allow_atomic" {
+  name              = "allow_atomic"
+  subjects          = ["ALLOW_ATOMIC.*"]
+  allow_atomic = true
+}
+`
+
 func TestResourceStream(t *testing.T) {
 	srv := createJSServer(t)
 	defer srv.Shutdown()
@@ -364,6 +375,13 @@ func TestResourceStream(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					testStreamExist(t, mgr, "allow_msg_counter"),
 					resource.TestCheckResourceAttr("jetstream_stream.allow_msg_counter", "allow_msg_counter", "true"),
+				),
+			},
+			{
+				Config: fmt.Sprintf(allowAtomic, nc.ConnectedUrl()),
+				Check: resource.ComposeTestCheckFunc(
+					testStreamExist(t, mgr, "allow_atomic"),
+					resource.TestCheckResourceAttr("jetstream_stream.allow_atomic", "allow_atomic", "true"),
 				),
 			},
 		},

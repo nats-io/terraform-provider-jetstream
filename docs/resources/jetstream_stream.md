@@ -66,6 +66,7 @@ Above the `ORDERS_ARCHIVE` stream is a mirror of `ORDERS`, valid options for spe
  * `deny_purge` - (optional) Restricts the ability to purge messages from a stream via the API. Cannot be change once set to true (bool)
  * `allow_rollup_hdrs` - (optional) Allows the use of the Nats-Rollup header to replace all contents of a stream, or subject in a stream, with a single new message (bool)
  * `allow_direct` - (optional) Allow higher performance, direct access to get individual messages via the $JS.DS.GET API (bool)
+* `subject_transform` - (optional) A map of source and destination subjects to transform.
  * `republish_source` - (optional) Republish matching messages to `republish_destination`
  * `republish_destination` - (optional) The destination to publish messages to
  * `republish_headers_only` - (optional) Republish only message headers, no bodies
@@ -73,3 +74,6 @@ Above the `ORDERS_ARCHIVE` stream is a mirror of `ORDERS`, valid options for spe
  * `max_ack_pending` - (optional) Maximum pending Acks before consumers are paused
  * `allow_msg_ttl` - (optional) Enables Per Message TTLs
  * `subject_delete_marker_ttl` - (optional) Enables placing markers when Max Age removes messages, duration specified in seconds (number)
+ * `mirror_direct` - (optional) If true, and the stream is a mirror, the mirror will participate in a serving direct get requests for individual messages from origin stream
+ * `allow_msg_counter` - (optional) Enables distributed counter mode for the stream. This field can only be set if `retention` is set to `limits`, `discard` is not `new`, `allow_msg_ttl` is false and the stream is not a `mirror`.
+* `allow_atomic` - (optional) Enables atomic batch publishes
