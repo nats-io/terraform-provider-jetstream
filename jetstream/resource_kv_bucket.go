@@ -48,6 +48,14 @@ func resourceKVBucket() *schema.Resource {
 				Optional:    true,
 				ForceNew:    false,
 			},
+			"storage": {
+				Type:             schema.TypeString,
+				Description:      "The storage engine to use to back the bucket",
+				Default:          "file",
+				ForceNew:         true,
+				Optional:         true,
+				ValidateDiagFunc: validateStorageTypeString(),
+			},
 			"history": {
 				Type:         schema.TypeInt,
 				Description:  "How many historical values to keep",
@@ -130,6 +138,14 @@ func resourceKVBucketCreate(d *schema.ResourceData, m any) error {
 	descrption := d.Get("description").(string)
 	limit_marker_ttl := d.Get("limit_marker_ttl").(int)
 
+	var storage jetstream.StorageType
+	switch d.Get("storage").(string) {
+	case "file":
+		storage = jetstream.FileStorage
+	case "memory":
+		storage = jetstream.MemoryStorage
+	}
+
 	var placement *jetstream.Placement
 	c, ok := d.GetOk("placement_cluster")
 	if ok {
@@ -169,7 +185,7 @@ func resourceKVBucketCreate(d *schema.ResourceData, m any) error {
 		History:        uint8(history),
 		TTL:            time.Duration(ttl) * time.Second,
 		MaxBytes:       int64(maxB),
-		Storage:        jetstream.FileStorage,
+		Storage:        storage,
 		Replicas:       replicas,
 		Placement:      placement,
 		LimitMarkerTTL: time.Duration(limit_marker_ttl) * time.Second,
@@ -219,6 +235,13 @@ func resourceKVBucketRead(d *schema.ResourceData, m any) error {
 
 	jStatus := status.(*jetstream.KeyValueBucketStatus)
 	si := jStatus.StreamInfo()
+
+	switch si.Config.Storage {
+	case jetstream.FileStorage:
+		d.Set("storage", "file")
+	case jetstream.MemoryStorage:
+		d.Set("storage", "memory")
+	}
 
 	d.Set("max_value_size", si.Config.MaxMsgSize)
 	d.Set("max_bucket_size", si.Config.MaxBytes)

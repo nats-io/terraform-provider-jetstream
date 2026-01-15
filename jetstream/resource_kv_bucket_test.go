@@ -34,6 +34,7 @@ provider "jetstream" {
 resource "jetstream_kv_bucket" "test" {
   name = "TEST"
   ttl = 60
+  storage = "memory"
   history = 10
   max_value_size = 1024
   max_bucket_size = 10240
@@ -66,6 +67,7 @@ func TestResourceKV(t *testing.T) {
 					testBucketExist(t, mgr, "TEST"),
 					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "name", "TEST"),
 					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "ttl", "60"),
+					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "storage", "memory"),
 					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "history", "10"),
 					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "max_value_size", "1024"),
 					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "max_bucket_size", "10240"),
