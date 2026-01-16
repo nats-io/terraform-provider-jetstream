@@ -266,6 +266,7 @@ resource "jetstream_kv_bucket" "test" {
 
  * `name` - (required) The unique name of the KV bucket, must match `\A[a-zA-Z0-9_-]+\z`
  * `description` - (optional) Contains additional information about this bucket
+ * `storage` - (optional) Storage backend to use, defaults to `file`, can be `file` or `memory`
  * `history` - (optional) Number of historic values to keep
  * `ttl` - (optional) How many seconds to keep values for, keeps forever when not set
  * `placement_cluster` - (optional) Place the bucket in a specific cluster, influenced by placement_tags
