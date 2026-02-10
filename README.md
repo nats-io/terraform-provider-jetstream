@@ -181,6 +181,7 @@ resource "jetstream_stream" "TRANSFORM" {
  * `mirror_direct` - (optional) If true, and the stream is a mirror, the mirror will participate in a serving direct get requests for individual messages from origin stream
  * `allow_msg_counter` - (optional) Enables distributed counter mode for the stream. This field can only be set if `retention` is set to `limits`, `discard` is not `new`, `allow_msg_ttl` is false and the stream is not a `mirror`.
  * `allow_atomic` - (optional) Enables atomic batch publishes
+ * `allow_msg_schedules` - (optional) Allows message scheduling for delayed or recurring delivery. This field can only be set if `allow_rollup_hdrs` is true.
 
 ## jetstream_consumer
 
