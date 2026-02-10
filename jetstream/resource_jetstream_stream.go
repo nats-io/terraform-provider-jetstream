@@ -346,6 +346,13 @@ func resourceStream() *schema.Resource {
 				ForceNew:    true,
 				Optional:    true,
 			},
+			"allow_msg_schedules": {
+				Type:        schema.TypeBool,
+				Description: "Allows message scheduling for delayed or recurring delivery. This field can only be set if allow_rollup_hdrs is true.",
+				Default:     false,
+				ForceNew:    true,
+				Optional:    true,
+			},
 		},
 	}
 }
@@ -437,6 +444,7 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 	d.Set("subject_delete_marker_ttl", str.SubjectDeleteMarkerTTL().Seconds())
 	d.Set("allow_msg_counter", str.CounterAllowed())
 	d.Set("allow_atomic", str.AtomicBatchPublishAllowed())
+	d.Set("allow_msg_schedules", str.SchedulesAllowed())
 
 	if transform := str.Configuration().SubjectTransform; transform != nil {
 		d.Set("subject_transform", []map[string]string{

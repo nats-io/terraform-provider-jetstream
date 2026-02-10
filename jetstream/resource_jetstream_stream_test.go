@@ -250,6 +250,18 @@ resource "jetstream_stream" "allow_atomic" {
 }
 `
 
+const allowMsgSchedules = `
+provider "jetstream" {
+	servers = "%s"
+}
+resource "jetstream_stream" "allow_msg_schedules" {
+  name                = "allow_msg_schedules"
+  subjects            = ["ALLOW_MSG_SCHEDULES.*"]
+  allow_msg_schedules = true
+  allow_rollup_hdrs   = true
+}
+`
+
 func TestResourceStream(t *testing.T) {
 	srv := createJSServer(t)
 	defer srv.Shutdown()
@@ -382,6 +394,13 @@ func TestResourceStream(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					testStreamExist(t, mgr, "allow_atomic"),
 					resource.TestCheckResourceAttr("jetstream_stream.allow_atomic", "allow_atomic", "true"),
+				),
+			},
+			{
+				Config: fmt.Sprintf(allowMsgSchedules, nc.ConnectedUrl()),
+				Check: resource.ComposeTestCheckFunc(
+					testStreamExist(t, mgr, "allow_msg_schedules"),
+					resource.TestCheckResourceAttr("jetstream_stream.allow_msg_schedules", "allow_msg_schedules", "true"),
 				),
 			},
 		},

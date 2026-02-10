@@ -356,6 +356,14 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		requiredAPILevel = 2
 	}
 
+	stream.AllowMsgSchedules = d.Get("allow_msg_schedules").(bool)
+	if stream.AllowMsgSchedules {
+		requiredAPILevel = 2
+		if !stream.RollupAllowed {
+			return api.StreamConfig{}, requiredAPILevel, fmt.Errorf("allow_msg_schedules requires allow_rollup_hdrs to be true")
+		}
+	}
+
 	ok, errs := stream.Validate(new(SchemaValidator))
 	if !ok {
 		return api.StreamConfig{}, requiredAPILevel, errors.New(strings.Join(errs, ", "))
