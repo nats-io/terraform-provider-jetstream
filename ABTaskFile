@@ -12,11 +12,15 @@ commands:
         - name: update
           description: Update dependencies
           type: exec
-          aliases: [up]
+          aliases: [up,u]
           flags:
             - name: verbose
               description: Log verbosely
               bool: true
+            - name: actions
+              bool: true
+              default: "true"
+              description: Run actions update using pinact
           script: |
             . "{{ BashHelperPath }}"
 
@@ -25,6 +29,11 @@ commands:
             go get -u -n -a -t {{- if .Flags.verbose }} -d -x {{ end }} ./...
 
             go mod tidy
+
+            {{ if .Flags.actions }}
+            ab_say Updating actions
+            pinact run --update
+            {{ end }}
 
     - name: test
       type: parent
