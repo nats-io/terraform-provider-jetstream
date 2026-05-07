@@ -105,6 +105,10 @@ func validateStorageTypeString() schema.SchemaValidateDiagFunc {
 	return validation.ToDiagFunc(validation.StringInSlice([]string{"file", "memory"}, false))
 }
 
+func validatePersistMode() schema.SchemaValidateDiagFunc {
+	return validation.ToDiagFunc(validation.StringInSlice([]string{"", "default", "async"}, false))
+}
+
 func streamSourceFromResourceData(d any) ([]*api.StreamSource, error) {
 	ss := d.([]any)
 	if len(ss) == 0 {
@@ -140,6 +144,14 @@ func streamSourceFromResourceData(d any) ([]*api.StreamSource, error) {
 			source.External = &api.ExternalStream{
 				ApiPrefix:     ext["api"].(string),
 				DeliverPrefix: ext["deliver"].(string),
+			}
+		}
+
+		if cs, ok := s["consumer"].([]any); ok && len(cs) > 0 {
+			cm := cs[0].(map[string]any)
+			source.Consumer = &api.StreamConsumerSource{
+				Name:           cm["name"].(string),
+				DeliverSubject: cm["deliver_subject"].(string),
 			}
 		}
 
@@ -221,6 +233,12 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 			placement.Tags = tags
 		}
 	}
+	if pref, ok := d.GetOk("placement_preferred"); ok {
+		if placement == nil {
+			placement = &api.Placement{}
+		}
+		placement.Preferred = pref.(string)
+	}
 
 	stream := api.StreamConfig{
 		Name:                   d.Get("name").(string),
@@ -245,6 +263,20 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		AllowMsgTTL:            d.Get("allow_msg_ttl").(bool),
 		SubjectDeleteMarkerTTL: time.Second * time.Duration(d.Get("subject_delete_marker_ttl").(int)),
 		SubjectTransform:       subjectTransforms,
+		FirstSeq:               uint64(d.Get("first_seq").(int)),
+		AllowBatchPublish:      d.Get("allow_batched").(bool),
+	}
+
+	switch d.Get("persist_mode").(string) {
+	case "", "default":
+		stream.PersistMode = api.DefaultPersistMode
+	case "async":
+		stream.PersistMode = api.AsyncPersistMode
+		requiredAPILevel = 2
+	}
+
+	if stream.AllowBatchPublish && requiredAPILevel < 3 {
+		requiredAPILevel = 3
 	}
 
 	repubSrc := d.Get("republish_source").(string)
@@ -302,6 +334,14 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 	if stream.Mirror != nil {
 		if len(stream.Sources) > 0 {
 			return api.StreamConfig{}, requiredAPILevel, fmt.Errorf("only one of sources and mirror may be specified")
+		}
+		if stream.Mirror.Consumer != nil && requiredAPILevel < 4 {
+			requiredAPILevel = 4
+		}
+	}
+	for _, src := range stream.Sources {
+		if src.Consumer != nil && requiredAPILevel < 4 {
+			requiredAPILevel = 4
 		}
 	}
 
