@@ -21,6 +21,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 )
 
@@ -233,6 +234,97 @@ resource "jetstream_consumer" "maqs-e" {
   max_ack_pending          = 1000
   replicas                 = 1
 }`
+
+const testAckPolicies = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_stream" "test" {
+  name     = "TEST"
+  subjects = ["TEST.*"]
+}
+
+resource "jetstream_consumer" "ack_explicit" {
+  stream_id    = jetstream_stream.test.id
+  durable_name = "ack_explicit"
+  deliver_all  = true
+  ack_policy   = "explicit"
+  max_batch    = 1
+}
+
+resource "jetstream_consumer" "ack_all" {
+  stream_id    = jetstream_stream.test.id
+  durable_name = "ack_all"
+  deliver_all  = true
+  ack_policy   = "all"
+  max_batch    = 1
+}
+
+resource "jetstream_consumer" "ack_none" {
+  stream_id    = jetstream_stream.test.id
+  durable_name = "ack_none"
+  deliver_all  = true
+  ack_policy   = "none"
+  max_batch    = 1
+}
+
+resource "jetstream_consumer" "ack_flow_control" {
+  stream_id        = jetstream_stream.test.id
+  durable_name     = "ack_flow_control"
+  deliver_all      = true
+  ack_policy       = "flow_control"
+  delivery_subject = "DELIVER.fc"
+  flow_control     = true
+  heartbeat        = 1
+  ack_wait         = 0
+}
+`
+
+func TestConsumerAckPolicies(t *testing.T) {
+	srv := createJSServer(t)
+	defer srv.Shutdown()
+
+	nc, err := nats.Connect(srv.ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProviderFactories: testJsProviders,
+		CheckDestroy: resource.ComposeTestCheckFunc(
+			testConsumerDoesNotExist(t, mgr, "TEST", "ack_explicit"),
+			testConsumerDoesNotExist(t, mgr, "TEST", "ack_all"),
+			testConsumerDoesNotExist(t, mgr, "TEST", "ack_none"),
+			testConsumerDoesNotExist(t, mgr, "TEST", "ack_flow_control"),
+		),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(testAckPolicies, nc.ConnectedUrl()),
+				Check: resource.ComposeTestCheckFunc(
+					testStreamExist(t, mgr, "TEST"),
+					testConsumerExist(t, mgr, "TEST", "ack_explicit"),
+					testConsumerHasAckPolicy(t, mgr, "TEST", "ack_explicit", api.AckExplicit),
+					resource.TestCheckResourceAttr("jetstream_consumer.ack_explicit", "ack_policy", "explicit"),
+					testConsumerExist(t, mgr, "TEST", "ack_all"),
+					testConsumerHasAckPolicy(t, mgr, "TEST", "ack_all", api.AckAll),
+					resource.TestCheckResourceAttr("jetstream_consumer.ack_all", "ack_policy", "all"),
+					testConsumerExist(t, mgr, "TEST", "ack_none"),
+					testConsumerHasAckPolicy(t, mgr, "TEST", "ack_none", api.AckNone),
+					resource.TestCheckResourceAttr("jetstream_consumer.ack_none", "ack_policy", "none"),
+					testConsumerExist(t, mgr, "TEST", "ack_flow_control"),
+					testConsumerHasAckPolicy(t, mgr, "TEST", "ack_flow_control", api.AckFlowControl),
+					resource.TestCheckResourceAttr("jetstream_consumer.ack_flow_control", "ack_policy", "flow_control"),
+				),
+			},
+		}})
+}
 
 const testPriorityGroups = `
 provider "jetstream" {
