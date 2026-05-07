@@ -85,6 +85,20 @@ func testConsumerHasFilterSubjects(t *testing.T, mgr *jsm.Manager, stream string
 	}
 }
 
+func testConsumerHasAckPolicy(t *testing.T, mgr *jsm.Manager, stream string, consumer string, policy api.AckPolicy) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		cons, err := mgr.LoadConsumer(stream, consumer)
+		if err != nil {
+			return err
+		}
+		if cons.AckPolicy() == policy {
+			return nil
+		}
+
+		return fmt.Errorf("expected ack policy %q got %q", policy, cons.AckPolicy())
+	}
+}
+
 func testStreamHasSubjects(t *testing.T, mgr *jsm.Manager, stream string, subjects []string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		str, err := mgr.LoadStream(stream)

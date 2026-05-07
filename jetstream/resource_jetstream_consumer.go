@@ -128,7 +128,7 @@ func resourceConsumer() *schema.Resource {
 				Description:  "The delivery acknowledgement policy to apply to the Consumer",
 				Optional:     true,
 				Default:      "explicit",
-				ValidateFunc: validation.StringInSlice([]string{"explicit", "all", "none"}, false),
+				ValidateFunc: validation.StringInSlice([]string{"explicit", "all", "none", "flow_control"}, false),
 				ForceNew:     true,
 			},
 			"ack_wait": {
@@ -404,6 +404,8 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 		cfg.AckPolicy = api.AckAll
 	case "none":
 		cfg.AckPolicy = api.AckNone
+	case "flow_control":
+		cfg.AckPolicy = api.AckFlowControl
 	}
 
 	fs, ok := d.GetOk("filter_subjects")
@@ -666,6 +668,8 @@ func resourceConsumerRead(d *schema.ResourceData, m any) error {
 		d.Set("ack_policy", "all")
 	case api.AckNone:
 		d.Set("ack_policy", "none")
+	case api.AckFlowControl:
+		d.Set("ack_policy", "flow_control")
 	}
 
 	switch cons.PriorityPolicy() {
