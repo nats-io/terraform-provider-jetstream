@@ -85,6 +85,67 @@ func testConsumerHasFilterSubjects(t *testing.T, mgr *jsm.Manager, stream string
 	}
 }
 
+func testStreamHasFirstSeq(t *testing.T, mgr *jsm.Manager, stream string, expected uint64) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		str, err := mgr.LoadStream(stream)
+		if err != nil {
+			return err
+		}
+		if got := str.Configuration().FirstSeq; got != expected {
+			return fmt.Errorf("expected first_seq %d got %d", expected, got)
+		}
+		return nil
+	}
+}
+
+func testStreamHasPersistMode(t *testing.T, mgr *jsm.Manager, stream string, expected api.PersistModeType) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		str, err := mgr.LoadStream(stream)
+		if err != nil {
+			return err
+		}
+		if got := str.Configuration().PersistMode; got != expected {
+			return fmt.Errorf("expected persist_mode %v got %v", expected, got)
+		}
+		return nil
+	}
+}
+
+func testStreamAllowsBatched(t *testing.T, mgr *jsm.Manager, stream string, expected bool) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		str, err := mgr.LoadStream(stream)
+		if err != nil {
+			return err
+		}
+		if got := str.Configuration().AllowBatchPublish; got != expected {
+			return fmt.Errorf("expected allow_batched %v got %v", expected, got)
+		}
+		return nil
+	}
+}
+
+func testStreamSourceHasConsumer(t *testing.T, mgr *jsm.Manager, stream string, sourceName string, name string, deliverSubject string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		str, err := mgr.LoadStream(stream)
+		if err != nil {
+			return err
+		}
+		for _, src := range str.Sources() {
+			if src.Name != sourceName {
+				continue
+			}
+			if src.Consumer == nil {
+				return fmt.Errorf("source %q has no consumer set", sourceName)
+			}
+			if src.Consumer.Name != name || src.Consumer.DeliverSubject != deliverSubject {
+				return fmt.Errorf("source %q consumer = {%q, %q}, want {%q, %q}", sourceName, src.Consumer.Name, src.Consumer.DeliverSubject, name, deliverSubject)
+			}
+			return nil
+		}
+		return fmt.Errorf("stream %q has no source named %q", stream, sourceName)
+	}
+}
+
 func testConsumerHasAckPolicy(t *testing.T, mgr *jsm.Manager, stream string, consumer string, policy api.AckPolicy) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		cons, err := mgr.LoadConsumer(stream, consumer)

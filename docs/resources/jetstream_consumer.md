@@ -25,7 +25,7 @@ resource "jetstream_consumer" "ORDERS_NEW" {
 
  * `description` - (optional) Contains additional information about this consumer
  * `metadata` - (optional) A map of strings with arbitrary metadata for the consumer
- * `ack_policy` - (optional) The delivery acknowledgement policy to apply to the Consumer
+ * `ack_policy` - (optional) The delivery acknowledgement policy to apply to the Consumer. One of `explicit` (default), `all`, `none`, or `flow_control`. The `flow_control` policy requires a push consumer with `flow_control = true` and `heartbeat = 1`.
  * `ack_wait` - (optional) Number of seconds to wait for acknowledgement
  * `deliver_all` - (optional) Starts at the first available message in the Stream
  * `deliver_last` - (optional) Starts at the latest available message in the Stream

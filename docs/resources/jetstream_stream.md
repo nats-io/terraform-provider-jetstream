@@ -35,6 +35,7 @@ Above the `ORDERS_ARCHIVE` stream is a mirror of `ORDERS`, valid options for spe
  * `start_seq` - (optional) Starts the mirror or source at this sequence in the source
  * `start_time` - (optional) Starts the mirror or source at this time in the source, in RFC3339 format
  * `external` - (optional) Reference to an external stream with keys `api` and `deliver`
+ * `consumer` - (optional) Use a named durable consumer on the source stream for sourcing. A block with `name` (the durable consumer name on the source stream) and `deliver_subject` (the push subject the source consumer delivers to).
  * `mirror_direct` - (optional) If true the mirror will participate in a serving direct get requests for individual messages from the origin stream
 
 
@@ -60,6 +61,7 @@ Above the `ORDERS_ARCHIVE` stream is a mirror of `ORDERS`, valid options for spe
  * `duplicate_window` - (optional) The time window size for duplicate tracking, duration specified in seconds (number)
  * `placement_cluster` - (optional) Place the stream in a specific cluster, influenced by placement_tags
  * `placement_tags` - (optional) Place the stream only on servers with these tags
+ * `placement_preferred` - (optional) A preferred server name to move the stream leader to
  * `source` - (optional) List of streams to source
  * `mirror` - (optional) Stream to mirror
  * `deny_delete` - (optional) Restricts the ability to delete messages from a stream via the API. Cannot be changed once set to true (bool)
@@ -78,3 +80,6 @@ Above the `ORDERS_ARCHIVE` stream is a mirror of `ORDERS`, valid options for spe
  * `allow_msg_counter` - (optional) Enables distributed counter mode for the stream. This field can only be set if `retention` is set to `limits`, `discard` is not `new`, `allow_msg_ttl` is false and the stream is not a `mirror`.
 * `allow_atomic` - (optional) Enables atomic batch publishes
 * `allow_msg_schedules` - (optional) Allows message scheduling for delayed or recurring delivery. This field can only be set if `allow_rollup_hdrs` is true.
+ * `allow_batched` - (optional) Allows fast batch publishing into the stream.
+ * `first_seq` - (optional) Sets a custom starting sequence for the first message in the stream. Cannot be changed after the stream is created.
+ * `persist_mode` - (optional) Sets a specific persistence mode for writing to the stream. One of `""` (server default), `default`, or `async`.

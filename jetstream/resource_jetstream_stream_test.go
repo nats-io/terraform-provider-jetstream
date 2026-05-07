@@ -262,6 +262,155 @@ resource "jetstream_stream" "allow_msg_schedules" {
 }
 `
 
+const testStreamFirstSeq = `
+provider "jetstream" {
+	servers = "%s"
+}
+resource "jetstream_stream" "first_seq" {
+  name      = "first_seq"
+  subjects  = ["FIRST_SEQ.*"]
+  first_seq = 100
+}
+`
+
+const testStreamPersistAsyncBatched = `
+provider "jetstream" {
+	servers = "%s"
+}
+resource "jetstream_stream" "persist_batched" {
+  name          = "persist_batched"
+  subjects      = ["PERSIST_BATCHED.*"]
+  persist_mode  = "async"
+  allow_batched = true
+}
+`
+
+const testStreamSourceConsumer = `
+provider "jetstream" {
+	servers = "%s"
+}
+resource "jetstream_stream" "src" {
+  name     = "SRC"
+  subjects = ["src.>"]
+}
+resource "jetstream_consumer" "src_push" {
+  stream_id        = jetstream_stream.src.id
+  durable_name     = "src_push"
+  deliver_all      = true
+  delivery_subject = "deliver.src_push"
+}
+resource "jetstream_stream" "sourced" {
+  name = "SOURCED"
+  source {
+    name = "SRC"
+    consumer {
+      name            = jetstream_consumer.src_push.durable_name
+      deliver_subject = "deliver.src_push"
+    }
+  }
+}
+`
+
+func TestStreamFirstSeq(t *testing.T) {
+	srv := createJSServer(t)
+	defer srv.Shutdown()
+
+	nc, err := nats.Connect(srv.ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProviderFactories: testJsProviders,
+		CheckDestroy:      testStreamDoesNotExist(t, mgr, "first_seq"),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(testStreamFirstSeq, nc.ConnectedUrl()),
+				Check: resource.ComposeTestCheckFunc(
+					testStreamExist(t, mgr, "first_seq"),
+					testStreamHasFirstSeq(t, mgr, "first_seq", 100),
+					resource.TestCheckResourceAttr("jetstream_stream.first_seq", "first_seq", "100"),
+				),
+			},
+		},
+	})
+}
+
+func TestStreamPersistAndBatched(t *testing.T) {
+	srv := createJSServer(t)
+	defer srv.Shutdown()
+
+	nc, err := nats.Connect(srv.ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProviderFactories: testJsProviders,
+		CheckDestroy:      testStreamDoesNotExist(t, mgr, "persist_batched"),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(testStreamPersistAsyncBatched, nc.ConnectedUrl()),
+				Check: resource.ComposeTestCheckFunc(
+					testStreamExist(t, mgr, "persist_batched"),
+					testStreamHasPersistMode(t, mgr, "persist_batched", api.AsyncPersistMode),
+					testStreamAllowsBatched(t, mgr, "persist_batched", true),
+					resource.TestCheckResourceAttr("jetstream_stream.persist_batched", "persist_mode", "async"),
+					resource.TestCheckResourceAttr("jetstream_stream.persist_batched", "allow_batched", "true"),
+				),
+			},
+		},
+	})
+}
+
+func TestStreamSourceConsumer(t *testing.T) {
+	srv := createJSServer(t)
+	defer srv.Shutdown()
+
+	nc, err := nats.Connect(srv.ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProviderFactories: testJsProviders,
+		CheckDestroy: resource.ComposeTestCheckFunc(
+			testStreamDoesNotExist(t, mgr, "SRC"),
+			testStreamDoesNotExist(t, mgr, "SOURCED"),
+		),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(testStreamSourceConsumer, nc.ConnectedUrl()),
+				Check: resource.ComposeTestCheckFunc(
+					testStreamExist(t, mgr, "SRC"),
+					testStreamExist(t, mgr, "SOURCED"),
+					testStreamSourceHasConsumer(t, mgr, "SOURCED", "SRC", "src_push", "deliver.src_push"),
+					resource.TestCheckResourceAttr("jetstream_stream.sourced", "source.0.consumer.0.name", "src_push"),
+					resource.TestCheckResourceAttr("jetstream_stream.sourced", "source.0.consumer.0.deliver_subject", "deliver.src_push"),
+				),
+			},
+		},
+	})
+}
+
 func TestResourceStream(t *testing.T) {
 	srv := createJSServer(t)
 	defer srv.Shutdown()

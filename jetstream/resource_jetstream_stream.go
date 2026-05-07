@@ -90,6 +90,26 @@ func resourceStream() *schema.Resource {
 				},
 			},
 		},
+		"consumer": {
+			Type:        schema.TypeList,
+			MaxItems:    1,
+			Description: "Use a named durable consumer on the source stream for sourcing",
+			Optional:    true,
+			Elem: &schema.Resource{
+				Schema: map[string]*schema.Schema{
+					"name": {
+						Type:        schema.TypeString,
+						Description: "The durable consumer name on the source stream",
+						Required:    true,
+					},
+					"deliver_subject": {
+						Type:        schema.TypeString,
+						Description: "The subject the source consumer delivers messages to",
+						Required:    true,
+					},
+				},
+			},
+		},
 	}
 
 	return &schema.Resource{
@@ -264,6 +284,12 @@ func resourceStream() *schema.Resource {
 					Type: schema.TypeString,
 				},
 			},
+			"placement_preferred": {
+				Type:        schema.TypeString,
+				Description: "A preferred server name to move the leader to",
+				Default:     "",
+				Optional:    true,
+			},
 			"subject_transform": {
 				Type:        schema.TypeList,
 				Description: "Subject transform to apply to matching messages",
@@ -352,6 +378,35 @@ func resourceStream() *schema.Resource {
 				Default:     false,
 				ForceNew:    true,
 				Optional:    true,
+			},
+			"first_seq": {
+				Type:        schema.TypeInt,
+				Description: "A custom sequence to use for the first message in the stream",
+				Optional:    true,
+				ForceNew:    true,
+				Default:     0,
+			},
+			"persist_mode": {
+				Type:             schema.TypeString,
+				Description:      "Sets a specific persistence mode for writing to the Stream. One of '', 'default', 'async'.",
+				Optional:         true,
+				Default:          "",
+				ValidateDiagFunc: validatePersistMode(),
+				DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
+					normalize := func(v string) string {
+						if v == "default" {
+							return ""
+						}
+						return v
+					}
+					return normalize(old) == normalize(new)
+				},
+			},
+			"allow_batched": {
+				Type:        schema.TypeBool,
+				Description: "Allows fast batch publishing into the Stream",
+				Optional:    true,
+				Default:     false,
 			},
 		},
 	}
@@ -445,6 +500,15 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 	d.Set("allow_msg_counter", str.CounterAllowed())
 	d.Set("allow_atomic", str.AtomicBatchPublishAllowed())
 	d.Set("allow_msg_schedules", str.SchedulesAllowed())
+	d.Set("first_seq", int(str.Configuration().FirstSeq))
+	d.Set("allow_batched", str.Configuration().AllowBatchPublish)
+
+	switch str.Configuration().PersistMode {
+	case api.AsyncPersistMode:
+		d.Set("persist_mode", "async")
+	default:
+		d.Set("persist_mode", "")
+	}
 
 	if transform := str.Configuration().SubjectTransform; transform != nil {
 		d.Set("subject_transform", []map[string]string{
@@ -482,6 +546,7 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 	if str.Configuration().Placement != nil {
 		d.Set("placement_cluster", str.Configuration().Placement.Cluster)
 		d.Set("placement_tags", str.Configuration().Placement.Tags)
+		d.Set("placement_preferred", str.Configuration().Placement.Preferred)
 	}
 
 	if str.IsMirror() {
@@ -525,6 +590,15 @@ func streamSourceConfigRead(source *api.StreamSource) map[string]any {
 			{
 				"api":     source.External.ApiPrefix,
 				"deliver": source.External.DeliverPrefix,
+			},
+		}
+	}
+
+	if source.Consumer != nil {
+		sourceConfig["consumer"] = []map[string]any{
+			{
+				"name":            source.Consumer.Name,
+				"deliver_subject": source.Consumer.DeliverSubject,
 			},
 		}
 	}
