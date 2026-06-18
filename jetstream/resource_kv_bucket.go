@@ -299,7 +299,6 @@ func resourceKVBucketUpdate(d *schema.ResourceData, m any) error {
 		MaxBytes:       str.CachedInfo().Config.MaxBytes,
 		Storage:        str.CachedInfo().Config.Storage,
 		Replicas:       str.CachedInfo().Config.Replicas,
-		Placement:      str.CachedInfo().Config.Placement,
 		RePublish:      str.CachedInfo().Config.RePublish,
 		Mirror:         str.CachedInfo().Config.Mirror,
 		Sources:        str.CachedInfo().Config.Sources,
@@ -314,12 +313,26 @@ func resourceKVBucketUpdate(d *schema.ResourceData, m any) error {
 	description := d.Get("description").(string)
 	markerTTL := d.Get("limit_marker_ttl").(int)
 
+	var placement *jetstream.Placement
+	if cluster, ok := d.GetOk("placement_cluster"); ok {
+		placement = &jetstream.Placement{Cluster: cluster.(string)}
+		if rawTags, ok := d.GetOk("placement_tags"); ok {
+			tagList := rawTags.([]any)
+			tags := make([]string, len(tagList))
+			for i, tag := range tagList {
+				tags[i] = tag.(string)
+			}
+			placement.Tags = tags
+		}
+	}
+
 	cfg.History = uint8(history)
 	cfg.TTL = time.Duration(ttl) * time.Second
 	cfg.MaxValueSize = int32(maxV)
 	cfg.MaxBytes = int64(maxB)
 	cfg.Description = description
 	cfg.LimitMarkerTTL = time.Duration(markerTTL) * time.Second
+	cfg.Placement = placement
 
 	_, err = js.CreateOrUpdateKeyValue(ctx, cfg)
 	if err != nil {
