@@ -276,7 +276,6 @@ func resourceObjBucketUpdate(d *schema.ResourceData, m any) error {
 		MaxBytes:    str.CachedInfo().Config.MaxBytes,
 		Storage:     str.CachedInfo().Config.Storage,
 		Replicas:    str.CachedInfo().Config.Replicas,
-		Placement:   str.CachedInfo().Config.Placement,
 		Compression: status.IsCompressed(),
 		Metadata:    str.CachedInfo().Config.Metadata,
 	}
@@ -287,10 +286,24 @@ func resourceObjBucketUpdate(d *schema.ResourceData, m any) error {
 	description := d.Get("description").(string)
 	compression := d.Get("compression").(bool)
 
+	var placement *jetstream.Placement
+	if cluster, ok := d.GetOk("placement_cluster"); ok {
+		placement = &jetstream.Placement{Cluster: cluster.(string)}
+		if rawTags, ok := d.GetOk("placement_tags"); ok {
+			tagList := rawTags.([]any)
+			tags := make([]string, len(tagList))
+			for i, tag := range tagList {
+				tags[i] = tag.(string)
+			}
+			placement.Tags = tags
+		}
+	}
+
 	cfg.TTL = time.Duration(ttl) * time.Second
 	cfg.MaxBytes = int64(maxB)
 	cfg.Replicas = replicas
 	cfg.Description = description
+	cfg.Placement = placement
 	cfg.Compression = compression
 
 	_, err = js.CreateOrUpdateObjectStore(ctx, cfg)
