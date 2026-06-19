@@ -4,6 +4,7 @@ This is a Terraform provider capable of managing the following JetStream assets:
  * Consumers
  * Key-Value Buckets
  * Key-Value Entries
+ * Object Store Buckets
 
 > [!WARNING]
 >
@@ -296,6 +297,32 @@ resource "jetstream_kv_entry" "test_entry" {
  * `bucket` - (required) The name of the KV bucket
  * `key` - (required) The entry key
  * `value` - (required) The entry value
+
+## jetstream_obj_bucket
+
+Creates a JetStream based Object Store bucket
+
+### Example
+
+```hcl
+resource "jetstream_obj_bucket" "test" {
+  name        = "TEST"
+  description = "Store payloads of arbitrary size"
+  compression = true
+}
+```
+
+### Attribute Reference
+
+ * `name` - (required) The unique name of the Object Store bucket, must match `\A[a-zA-Z0-9_-]+\z`
+ * `description` - (optional) Contains additional information about this bucket
+ * `storage` - (optional) Storage backend to use, defaults to `file`, can be `file` or `memory`
+ * `ttl` - (optional) How many seconds to keep objects for, keeps forever when not set
+ * `placement_cluster` - (optional) Place the bucket in a specific cluster, influenced by placement_tags
+ * `placement_tags` - (optional) Place the bucket only on servers with these tags
+ * `max_bucket_size` - (optional) The maximum size of all data in the bucket
+ * `replicas` - (optional) How many replicas to keep on a JetStream cluster
+ * `compression` - (optional) Enables compression for objects stored in the bucket
 
 # Import existing JetStream resources 
 

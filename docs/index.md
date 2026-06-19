@@ -52,3 +52,4 @@ resource "jetstream_consumer" "ORDERS_NEW" {
  * `jetstream_stream` - Manage a Stream that persistently stores messages
  * `jetstream_consumer` - Creates a Consumer that defines how Stream messages can be consumed by clients
  * `jetstream_kv_bucket` - Creates a Key-Value store
+ * `jetstream_obj_bucket` - Creates an Object Store bucket
