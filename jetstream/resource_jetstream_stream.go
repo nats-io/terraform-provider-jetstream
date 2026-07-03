@@ -369,7 +369,7 @@ func resourceStream() *schema.Resource {
 			"allow_atomic": {
 				Type:        schema.TypeBool,
 				Description: "Allow atomic batched publishes",
-				ForceNew:    true,
+				ForceNew:    false,
 				Optional:    true,
 			},
 			"allow_msg_schedules": {
