@@ -98,6 +98,19 @@ func testStreamHasFirstSeq(t *testing.T, mgr *jsm.Manager, stream string, expect
 	}
 }
 
+func testStreamHasDuplicateWindow(t *testing.T, mgr *jsm.Manager, stream string, expected time.Duration) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		str, err := mgr.LoadStream(stream)
+		if err != nil {
+			return err
+		}
+		if got := str.DuplicateWindow(); got != expected {
+			return fmt.Errorf("expected duplicate_window %s got %s", expected, got)
+		}
+		return nil
+	}
+}
+
 func testStreamHasPersistMode(t *testing.T, mgr *jsm.Manager, stream string, expected api.PersistModeType) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		str, err := mgr.LoadStream(stream)

@@ -162,7 +162,7 @@ resource "jetstream_stream" "TRANSFORM" {
  * `retention` - (optional) The retention policy to apply over and above max_msgs, max_bytes and max_age (string). Options are `limits`, `interest` and `workqueue`. Defaults to `limits`.
  * `storage` - (optional) The storage engine to use to back the stream (string)
  * `subjects` - The list of subjects that will be consumed by the Stream (["list", "string"])
- * `duplicate_window` - (optional) The time window size for duplicate tracking, duration specified in seconds (number)
+ * `duplicate_window` - (optional) The time window size for duplicate tracking, duration specified in seconds, fractions allowed (number)
  * `placement_cluster` - (optional) Place the stream in a specific cluster, influenced by placement_tags
  * `placement_tags` - (optional) Place the stream only on servers with these tags
  * `source` - (optional) List of streams to source

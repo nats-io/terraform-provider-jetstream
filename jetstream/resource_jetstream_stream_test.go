@@ -228,6 +228,17 @@ resource "jetstream_stream" "pedantic_mirror" {
 }
 `
 
+const subSecondDuplicateWindow = `
+provider "jetstream" {
+	servers = "%s"
+}
+resource "jetstream_stream" "sub_second_duplicate_window" {
+  name             = "SUB_SECOND_DUPLICATE_WINDOW"
+  subjects         = ["SUB_SECOND_DUPLICATE_WINDOW.*"]
+  duplicate_window = 0.1
+}
+`
+
 const allowMsgCounter = `
 provider "jetstream" {
 	servers = "%s"
@@ -530,6 +541,14 @@ func TestResourceStream(t *testing.T) {
 			{
 				Config:      fmt.Sprintf(pedanticMirrorDirect, nc.ConnectedUrl()),
 				ExpectError: regexp.MustCompile(`origin stream has direct get set, mirror has it disabled \(10157\)`),
+			},
+			{
+				Config: fmt.Sprintf(subSecondDuplicateWindow, nc.ConnectedUrl()),
+				Check: resource.ComposeTestCheckFunc(
+					testStreamExist(t, mgr, "SUB_SECOND_DUPLICATE_WINDOW"),
+					testStreamHasDuplicateWindow(t, mgr, "SUB_SECOND_DUPLICATE_WINDOW", 100*time.Millisecond),
+					resource.TestCheckResourceAttr("jetstream_stream.sub_second_duplicate_window", "duplicate_window", "0.1"),
+				),
 			},
 			{
 				Config: fmt.Sprintf(allowMsgCounter, nc.ConnectedUrl()),

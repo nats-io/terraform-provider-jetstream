@@ -190,8 +190,8 @@ func resourceStream() *schema.Resource {
 				Default:     0,
 			},
 			"duplicate_window": {
-				Type:        schema.TypeInt,
-				Description: "The size of the duplicate tracking windows, duration specified in seconds",
+				Type:        schema.TypeFloat,
+				Description: "The size of the duplicate tracking windows, duration specified in seconds, fractions allowed",
 				Optional:    true,
 				Default:     120,
 			},
