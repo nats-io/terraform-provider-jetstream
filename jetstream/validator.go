@@ -16,14 +16,14 @@ package jetstream
 import (
 	"fmt"
 
-	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/jsm.go/registry"
 	"github.com/xeipuuv/gojsonschema"
 )
 
 type SchemaValidator struct{}
 
 func (v SchemaValidator) ValidateStruct(data any, schemaType string) (ok bool, errs []string) {
-	s, err := api.Schema(schemaType)
+	s, err := registry.Schema(schemaType)
 	if err != nil {
 		return false, []string{"unknown schema type %s", schemaType}
 	}

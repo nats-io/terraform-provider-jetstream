@@ -62,6 +62,12 @@ func Provider() *schema.Provider {
 				Description:   "Connect using a NKEY seed stored in a file",
 				ConflictsWith: []string{"user", "credentials", "credential_data"},
 			},
+			"inbox_prefix": {
+				Type:             schema.TypeString,
+				Optional:         true,
+				Description:      "Custom prefix for request-reply inboxes, replacing _INBOX",
+				ValidateDiagFunc: validateInboxPrefix(),
+			},
 			"tls": {
 				Type:     schema.TypeSet,
 				MaxItems: 1,
