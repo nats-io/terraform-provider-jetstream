@@ -27,6 +27,7 @@ import (
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/jwt/v2"
+	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -112,6 +113,17 @@ func validateDiscardPolicy() schema.SchemaValidateDiagFunc {
 
 func validateStorageTypeString() schema.SchemaValidateDiagFunc {
 	return validation.ToDiagFunc(validation.StringInSlice([]string{"file", "memory"}, false))
+}
+
+func validateInboxPrefix() schema.SchemaValidateDiagFunc {
+	return func(i any, p cty.Path) diag.Diagnostics {
+		prefix := i.(string)
+		if prefix == "" || (server.IsValidSubject(prefix) && !strings.ContainsAny(prefix, "*>")) {
+			return nil
+		}
+
+		return diag.Errorf("invalid inbox_prefix %q: must be dot separated subject tokens without wildcards or whitespace", prefix)
+	}
 }
 
 func validatePersistMode() schema.SchemaValidateDiagFunc {
@@ -453,6 +465,7 @@ type connectProperties struct {
 	user            string
 	pass            string
 	nkey            string
+	inboxPrefix     string
 	caFile          string
 	certFile        string
 	keyFile         string
@@ -472,6 +485,7 @@ func getConnectProperties(d *schema.ResourceData) (*connectProperties, error) {
 		user:            "",
 		pass:            "",
 		nkey:            "",
+		inboxPrefix:     "",
 		caFile:          "",
 		certFile:        "",
 		keyFile:         "",
@@ -508,6 +522,11 @@ func getConnectProperties(d *schema.ResourceData) (*connectProperties, error) {
 	s = d.Get("nkey")
 	if s != nil {
 		p.nkey = s.(string)
+	}
+
+	s = d.Get("inbox_prefix")
+	if s != nil {
+		p.inboxPrefix = s.(string)
 	}
 
 	s = d.Get("tls")
@@ -612,6 +631,10 @@ func connectMgr(d *schema.ResourceData) (any, error) {
 			}
 
 			opts = append(opts, nko)
+		}
+
+		if props.inboxPrefix != "" {
+			opts = append(opts, nats.CustomInboxPrefix(props.inboxPrefix))
 		}
 
 		if len(props.caFile) > 0 {
