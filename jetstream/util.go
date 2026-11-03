@@ -338,6 +338,7 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 			return api.StreamConfig{}, requiredAPILevel, fmt.Errorf("expected exactly one mirror source")
 		}
 		stream.Mirror = sources[0]
+		stream.Duplicates = 0
 		mirrorDirect, ok := d.GetOk("mirror_direct")
 		if ok {
 			stream.MirrorDirect = mirrorDirect.(bool)
@@ -505,6 +506,11 @@ func getConnectProperties(d *schema.ResourceData) (*connectProperties, error) {
 		p.credData = []byte(s.(string))
 	}
 
+	// credentials can come from NATS_CREDS, credential_data set in the configuration takes precedence over it.
+	if len(p.credData) > 0 {
+		p.creds = ""
+	}
+
 	s = d.Get("servers")
 	if s != nil {
 		p.servers = s.(string)
@@ -587,7 +593,16 @@ func getConnection(d *schema.ResourceData, m any) (*nats.Conn, error) {
 	return nc, err
 }
 
+func isNonEmptyString(v cty.Value) bool {
+	return !v.IsNull() && v.IsKnown() && v.AsString() != ""
+}
+
 func connectMgr(_ context.Context, d *schema.ResourceData) (any, diag.Diagnostics) {
+	raw := d.GetRawConfig()
+	if isNonEmptyString(raw.GetAttr("credentials")) && isNonEmptyString(raw.GetAttr("credential_data")) {
+		return nil, diag.Errorf("only one of credentials and credential_data may be set")
+	}
+
 	return func() (*nats.Conn, *jsm.Manager, error) {
 		props, err := getConnectProperties(d)
 		if err != nil {

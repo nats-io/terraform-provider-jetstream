@@ -31,7 +31,7 @@ resource "jetstream_stream" "ORDERS_ARCHIVE" {
 Above the `ORDERS_ARCHIVE` stream is a mirror of `ORDERS`, valid options for specifying a mirror and sources are:
 
  * `name` - The name of the stream to mirror
- * `filter_subject` - (optional) For sources this filters the source
+ * `filter_subject` - (optional) For sources this filters the source. Cannot be combined with `subject_transform`, use the transform `source` as the filter instead
  * `start_seq` - (optional) Starts the mirror or source at this sequence in the source
  * `start_time` - (optional) Starts the mirror or source at this time in the source, in RFC3339 format
  * `external` - (optional) Reference to an external stream with keys `api` and `deliver`
@@ -58,14 +58,14 @@ Above the `ORDERS_ARCHIVE` stream is a mirror of `ORDERS`, valid options for spe
  * `retention` - (optional) The retention policy to apply over and above max_msgs, max_bytes and max_age (string). Options are `limits`, `interest` and `workqueue`. Defaults to `limits`.
  * `storage` - (optional) The storage engine to use to back the stream (string)
  * `subjects` - The list of subjects that will be consumed by the Stream (["list", "string"])
- * `duplicate_window` - (optional) The time window size for duplicate tracking, duration specified in seconds, fractions allowed (number)
+ * `duplicate_window` - (optional) The time window size for duplicate tracking, duration specified in seconds, fractions allowed. Ignored for mirrors (number)
  * `placement_cluster` - (optional) Place the stream in a specific cluster, influenced by placement_tags
  * `placement_tags` - (optional) Place the stream only on servers with these tags
  * `placement_preferred` - (optional) A preferred server name to move the stream leader to
  * `source` - (optional) List of streams to source
  * `mirror` - (optional) Stream to mirror
- * `deny_delete` - (optional) Restricts the ability to delete messages from a stream via the API. Cannot be changed once set to true (bool)
- * `deny_purge` - (optional) Restricts the ability to purge messages from a stream via the API. Cannot be change once set to true (bool)
+ * `deny_delete` - (optional) Restricts the ability to delete messages from a stream via the API. Changing it from true to false replaces the stream (bool)
+ * `deny_purge` - (optional) Restricts the ability to purge messages from a stream via the API. Changing it from true to false replaces the stream (bool)
  * `allow_rollup_hdrs` - (optional) Allows the use of the Nats-Rollup header to replace all contents of a stream, or subject in a stream, with a single new message (bool)
  * `allow_direct` - (optional) Allow higher performance, direct access to get individual messages via the $JS.DS.GET API (bool)
 * `subject_transform` - (optional) A map of source and destination subjects to transform.
@@ -82,4 +82,4 @@ Above the `ORDERS_ARCHIVE` stream is a mirror of `ORDERS`, valid options for spe
 * `allow_msg_schedules` - (optional) Allows message scheduling for delayed or recurring delivery. This field can only be set if `allow_rollup_hdrs` is true.
  * `allow_batched` - (optional) Allows fast batch publishing into the stream.
  * `first_seq` - (optional) Sets a custom starting sequence for the first message in the stream. Cannot be changed after the stream is created.
- * `persist_mode` - (optional) Sets a specific persistence mode for writing to the stream. One of `""` (server default), `default`, or `async`.
+ * `persist_mode` - (optional) Sets a specific persistence mode for writing to the stream. One of `""` (server default), `default`, or `async`. Changing it replaces the stream.

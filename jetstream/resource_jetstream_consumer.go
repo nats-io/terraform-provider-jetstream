@@ -187,11 +187,14 @@ func resourceConsumer() *schema.Resource {
 			},
 			"max_ack_pending": {
 				Type:         schema.TypeInt,
-				Description:  "Maximum pending Acks before consumers are paused",
+				Description:  "Maximum pending Acks before consumers are paused. Ignored for push consumers with ack_policy none",
 				Optional:     true,
 				Default:      20000,
 				ValidateFunc: validation.IntAtLeast(-1),
 				ForceNew:     false,
+				DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
+					return isPushAckNone(d)
+				},
 			},
 			"heartbeat": {
 				Type:        schema.TypeInt,
@@ -213,8 +216,11 @@ func resourceConsumer() *schema.Resource {
 				Optional:      true,
 				Computed:      true,
 				ConflictsWith: []string{"delivery_subject"},
-				ForceNew:      false,
+				ForceNew:      true,
 				ValidateFunc:  validation.IntAtLeast(0),
+				DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
+					return new == "0"
+				},
 			},
 			"headers_only": {
 				Type:        schema.TypeBool,
@@ -320,9 +326,20 @@ func resourceConsumer() *schema.Resource {
 				return fmt.Errorf("setting priority_timeout requires priority_policy to be set to 'pinned_client'")
 			}
 
+			if d.Get("ack_policy").(string) == "none" && d.Get("delivery_subject").(string) != "" {
+				rawPending := d.GetRawConfig().GetAttr("max_ack_pending")
+				if !rawPending.IsNull() && rawPending.IsKnown() && rawPending.AsBigFloat().Sign() > 0 {
+					return fmt.Errorf("max_ack_pending cannot be set on a push consumer with ack_policy none")
+				}
+			}
+
 			return nil
 		},
 	}
+}
+
+func isPushAckNone(d *schema.ResourceData) bool {
+	return d.Get("ack_policy").(string) == "none" && d.Get("delivery_subject").(string) != ""
 }
 
 func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerConfig, requiredApiLevel uint, err error) {
@@ -362,6 +379,11 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 		} else {
 			cfg.MaxWaiting = max_waiting
 		}
+	}
+
+	// The server rejects a positive value for ack none push consumers, and in pedantic mode rejects 0 when the stream has a max_ack_pending consumer limit.
+	if isPushAckNone(d) {
+		cfg.MaxAckPending = -1
 	}
 
 	for _, d := range d.Get("backoff").([]any) {

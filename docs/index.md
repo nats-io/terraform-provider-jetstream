@@ -36,7 +36,7 @@ resource "jetstream_consumer" "ORDERS_NEW" {
 
  * `servers` - The list of servers to connect to in a comma seperated list.
  * `credentials` - (optional) Fully Qualified Path to a file holding NATS credentials.
- * `credential_data` - (optional) The NATS credentials as a string, intended to use with data providers.
+ * `credential_data` - (optional) The NATS credentials as a string, intended to use with data providers. Cannot be combined with `credentials`, and takes precedence over `NATS_CREDS`.
  * `user` - (optional) Connects using a username, when no password is set this is assumed to be a Token.
  * `password` - (optional) Connects using a password.
  * `nkey` - (optional) Connects using an nkey stored in a file.

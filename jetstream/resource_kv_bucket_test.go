@@ -158,3 +158,50 @@ func TestResourceKVExternalDeletion(t *testing.T) {
 		},
 	})
 }
+
+const testKVReplicas = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_kv_bucket" "test" {
+  name     = "TEST"
+  replicas = %d
+}
+`
+
+func TestResourceKVReplicasUpdate(t *testing.T) {
+	servers := createJSCluster(t)
+
+	nc, err := nats.Connect(servers[0].ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy:             testBucketDoesNotExist(t, mgr, "TEST"),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(testKVReplicas, nc.ConnectedUrl(), 3),
+				Check: resource.ComposeTestCheckFunc(
+					testStreamHasReplicas(t, mgr, "KV_TEST", 3),
+					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "replicas", "3"),
+				),
+			},
+			{
+				Config: fmt.Sprintf(testKVReplicas, nc.ConnectedUrl(), 1),
+				Check: resource.ComposeTestCheckFunc(
+					testStreamHasReplicas(t, mgr, "KV_TEST", 1),
+					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "replicas", "1"),
+				),
+			},
+		},
+	})
+}

@@ -332,6 +332,7 @@ func resourceKVBucketUpdate(ctx context.Context, d *schema.ResourceData, m any) 
 	cfg.MaxValueSize = int32(maxV)
 	cfg.MaxBytes = int64(maxB)
 	cfg.Description = description
+	cfg.Replicas = d.Get("replicas").(int)
 	cfg.LimitMarkerTTL = time.Duration(markerTTL) * time.Second
 	cfg.Placement = placement
 
