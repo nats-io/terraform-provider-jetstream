@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
@@ -575,6 +576,305 @@ func TestResourceStream(t *testing.T) {
 					testStreamExist(t, mgr, "allow_msg_schedules"),
 					resource.TestCheckResourceAttr("jetstream_stream.allow_msg_schedules", "allow_msg_schedules", "true"),
 				),
+			},
+		},
+	})
+}
+
+const testStreamInactiveThreshold = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_stream" "test" {
+  name               = "TEST"
+  subjects           = ["TEST.*"]
+  inactive_threshold = 300
+}
+`
+
+func TestStreamInactiveThreshold(t *testing.T) {
+	srv := createJSServer(t)
+	defer srv.Shutdown()
+
+	nc, err := nats.Connect(srv.ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy:             testStreamDoesNotExist(t, mgr, "TEST"),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(testStreamInactiveThreshold, nc.ConnectedUrl()),
+				Check: resource.ComposeTestCheckFunc(
+					testStreamHasInactiveThreshold(t, mgr, "TEST", 300*time.Second),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "inactive_threshold", "300"),
+				),
+			},
+			{
+				ResourceName:      "jetstream_stream.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+const testStreamMirrorDuplicateWindow = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_stream" "origin" {
+  name         = "ORIGIN"
+  subjects     = ["origin.>"]
+  allow_direct = false
+}
+
+resource "jetstream_stream" "test" {
+  name = "TEST"
+  mirror {
+    name = jetstream_stream.origin.name
+  }
+}
+`
+
+func TestStreamMirrorDuplicateWindow(t *testing.T) {
+	for _, clustered := range []bool{false, true} {
+		t.Run(fmt.Sprintf("clustered=%v", clustered), func(t *testing.T) {
+			var url string
+			if clustered {
+				url = createJSCluster(t)[0].ClientURL()
+			} else {
+				srv := createJSServer(t)
+				defer srv.Shutdown()
+				url = srv.ClientURL()
+			}
+
+			nc, err := nats.Connect(url)
+			if err != nil {
+				t.Fatalf("could not connect: %s", err)
+			}
+			defer nc.Close()
+
+			mgr, err := jsm.New(nc)
+			if err != nil {
+				t.Fatalf("could not connect: %s", err)
+			}
+
+			resource.Test(t, resource.TestCase{
+				ProtoV5ProviderFactories: testJsProviders,
+				CheckDestroy: resource.ComposeTestCheckFunc(
+					testStreamDoesNotExist(t, mgr, "TEST"),
+					testStreamDoesNotExist(t, mgr, "ORIGIN"),
+				),
+				Steps: []resource.TestStep{
+					{
+						Config: fmt.Sprintf(testStreamMirrorDuplicateWindow, nc.ConnectedUrl()),
+						Check:  testStreamHasDuplicateWindow(t, mgr, "TEST", 0),
+					},
+				},
+			})
+		})
+	}
+}
+
+const testStreamImmutable = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_stream" "test" {
+  name         = "TEST"
+  subjects     = ["TEST.*"]
+  deny_delete  = %t
+  deny_purge   = %t
+  persist_mode = "%s"
+}
+`
+
+func TestStreamImmutableSettingsForceReplace(t *testing.T) {
+	srv := createJSServer(t)
+	defer srv.Shutdown()
+
+	nc, err := nats.Connect(srv.ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	cfg := func(denyDelete, denyPurge bool, persist string) string {
+		return fmt.Sprintf(testStreamImmutable, nc.ConnectedUrl(), denyDelete, denyPurge, persist)
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy:             testStreamDoesNotExist(t, mgr, "TEST"),
+		Steps: []resource.TestStep{
+			{
+				Config: cfg(false, false, "default"),
+			},
+			{
+				Config: cfg(true, true, "default"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("jetstream_stream.test", plancheck.ResourceActionUpdate),
+					},
+				},
+			},
+			{
+				Config: cfg(false, true, "default"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("jetstream_stream.test", plancheck.ResourceActionReplace),
+					},
+				},
+				Check: resource.TestCheckResourceAttr("jetstream_stream.test", "deny_delete", "false"),
+			},
+			{
+				Config: cfg(false, false, "default"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("jetstream_stream.test", plancheck.ResourceActionReplace),
+					},
+				},
+				Check: resource.TestCheckResourceAttr("jetstream_stream.test", "deny_purge", "false"),
+			},
+			{
+				Config: cfg(false, false, "async"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("jetstream_stream.test", plancheck.ResourceActionReplace),
+					},
+				},
+				Check: testStreamHasPersistMode(t, mgr, "TEST", api.AsyncPersistMode),
+			},
+		},
+	})
+}
+
+const testStreamMirrorFilterAndTransform = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_stream" "test" {
+  name = "TEST"
+  mirror {
+    name           = "ORIGIN"
+    filter_subject = "origin.a.>"
+    subject_transform {
+      source      = "origin.a.>"
+      destination = "m.a.>"
+    }
+  }
+}
+`
+
+const testStreamSourceFilterAndTransform = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_stream" "test" {
+  name = "TEST"
+  source {
+    name = "ORIGIN1"
+  }
+  source {
+    name           = "ORIGIN2"
+    filter_subject = "origin.a.>"
+    subject_transform {
+      source      = "origin.a.>"
+      destination = "s.a.>"
+    }
+  }
+}
+`
+
+func TestStreamSourceFilterAndTransformConflict(t *testing.T) {
+	srv := createJSServer(t)
+	defer srv.Shutdown()
+
+	resource.Test(t, resource.TestCase{
+		ProtoV5ProviderFactories: testJsProviders,
+		Steps: []resource.TestStep{
+			{
+				Config:      fmt.Sprintf(testStreamMirrorFilterAndTransform, srv.ClientURL()),
+				PlanOnly:    true,
+				ExpectError: regexp.MustCompile(`mirror.0: filter_subject and subject_transform cannot both be set`),
+			},
+			{
+				Config:      fmt.Sprintf(testStreamSourceFilterAndTransform, srv.ClientURL()),
+				PlanOnly:    true,
+				ExpectError: regexp.MustCompile(`source.1: filter_subject and subject_transform cannot both be set`),
+			},
+		},
+	})
+}
+
+const testStreamDenyFromUnknown = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "terraform_data" "flag" {
+  input            = true
+  triggers_replace = "%s"
+}
+
+resource "jetstream_stream" "test" {
+  name        = "TEST"
+  subjects    = ["TEST.*"]
+  deny_delete = terraform_data.flag.output
+  deny_purge  = terraform_data.flag.output
+}
+`
+
+func TestStreamDenyUnknownValueUpdatesInPlace(t *testing.T) {
+	srv := createJSServer(t)
+	defer srv.Shutdown()
+
+	nc, err := nats.Connect(srv.ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy:             testStreamDoesNotExist(t, mgr, "TEST"),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(testStreamDenyFromUnknown, nc.ConnectedUrl(), "1"),
+				Check:  resource.TestCheckResourceAttr("jetstream_stream.test", "deny_delete", "true"),
+			},
+			{
+				Config: fmt.Sprintf(testStreamDenyFromUnknown, nc.ConnectedUrl(), "2"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("jetstream_stream.test", plancheck.ResourceActionUpdate),
+					},
+				},
+				Check: resource.TestCheckResourceAttr("jetstream_stream.test", "deny_delete", "true"),
 			},
 		},
 	})

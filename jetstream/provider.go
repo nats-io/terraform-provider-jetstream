@@ -43,7 +43,7 @@ func Provider() *schema.Provider {
 			"credential_data": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Description: "The contents of the NATS 2.0 Credentials file to use",
+				Description: "The contents of the NATS 2.0 Credentials file to use, takes precedence over NATS_CREDS",
 			},
 			"user": {
 				Type:          schema.TypeString,

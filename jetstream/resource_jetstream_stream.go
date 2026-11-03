@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/customdiff"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/nats-io/jsm.go"
@@ -193,9 +194,12 @@ func resourceStream() *schema.Resource {
 			},
 			"duplicate_window": {
 				Type:        schema.TypeFloat,
-				Description: "The size of the duplicate tracking windows, duration specified in seconds, fractions allowed",
+				Description: "The size of the duplicate tracking windows, duration specified in seconds, fractions allowed. Ignored for mirrors",
 				Optional:    true,
 				Default:     120,
+				DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
+					return len(d.Get("mirror").([]any)) > 0
+				},
 			},
 			"max_msg_size": {
 				Type:        schema.TypeInt,
@@ -245,13 +249,13 @@ func resourceStream() *schema.Resource {
 			},
 			"deny_delete": {
 				Type:        schema.TypeBool,
-				Description: "Restricts the ability to delete messages from a stream via the API. Cannot be changed once set to true",
+				Description: "Restricts the ability to delete messages from a stream via the API. Changing it from true to false replaces the stream",
 				Default:     false,
 				Optional:    true,
 			},
 			"deny_purge": {
 				Type:        schema.TypeBool,
-				Description: "Restricts the ability to purge messages from a stream via the API. Cannot be change once set to true",
+				Description: "Restricts the ability to purge messages from a stream via the API. Changing it from true to false replaces the stream",
 				Default:     false,
 				Optional:    true,
 			},
@@ -392,6 +396,7 @@ func resourceStream() *schema.Resource {
 				Type:             schema.TypeString,
 				Description:      "Sets a specific persistence mode for writing to the Stream. One of '', 'default', 'async'.",
 				Optional:         true,
+				ForceNew:         true,
 				Default:          "",
 				ValidateDiagFunc: validatePersistMode(),
 				DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
@@ -411,7 +416,39 @@ func resourceStream() *schema.Resource {
 				Default:     false,
 			},
 		},
+		CustomizeDiff: customdiff.All(
+			customdiff.ForceNewIf("deny_delete", disablesFlag("deny_delete")),
+			customdiff.ForceNewIf("deny_purge", disablesFlag("deny_purge")),
+			validateSourceFilters,
+		),
 	}
+}
+
+func disablesFlag(key string) customdiff.ResourceConditionFunc {
+	return func(_ context.Context, d *schema.ResourceDiff, _ any) bool {
+		if !d.NewValueKnown(key) {
+			return false
+		}
+		old, new := d.GetChange(key)
+		return old.(bool) && !new.(bool)
+	}
+}
+
+// The server rejects a source or mirror that sets both filter_subject and subject_transform.
+func validateSourceFilters(_ context.Context, d *schema.ResourceDiff, _ any) error {
+	for _, block := range []string{"mirror", "source"} {
+		for i, src := range d.Get(block).([]any) {
+			s, ok := src.(map[string]any)
+			if !ok {
+				continue
+			}
+			if s["filter_subject"].(string) != "" && len(s["subject_transform"].([]any)) > 0 {
+				return fmt.Errorf("%s.%d: filter_subject and subject_transform cannot both be set, use the subject_transform source as the filter", block, i)
+			}
+		}
+	}
+
+	return nil
 }
 
 func resourceStreamCreate(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
@@ -496,7 +533,7 @@ func resourceStreamRead(ctx context.Context, d *schema.ResourceData, m any) diag
 	d.Set("discard_new_per_subject", str.DiscardNewPerSubject())
 	d.Set("compression", compression)
 	d.Set("max_ack_pending", str.ConsumerLimits().MaxAckPending)
-	d.Set("inactive_threshold", str.ConsumerLimits().InactiveThreshold)
+	d.Set("inactive_threshold", int(str.ConsumerLimits().InactiveThreshold.Seconds()))
 	d.Set("allow_msg_ttl", str.AllowMsgTTL())
 	d.Set("subject_delete_marker_ttl", str.SubjectDeleteMarkerTTL().Seconds())
 	d.Set("allow_msg_counter", str.CounterAllowed())

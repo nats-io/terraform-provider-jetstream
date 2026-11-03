@@ -425,3 +425,42 @@ func testStreamIsTransformed(t *testing.T, mgr *jsm.Manager, stream string, tran
 		return nil
 	}
 }
+
+func testStreamHasReplicas(t *testing.T, mgr *jsm.Manager, stream string, expected int) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		str, err := mgr.LoadStream(stream)
+		if err != nil {
+			return err
+		}
+		if got := str.Replicas(); got != expected {
+			return fmt.Errorf("expected replicas %d got %d", expected, got)
+		}
+		return nil
+	}
+}
+
+func testStreamHasInactiveThreshold(t *testing.T, mgr *jsm.Manager, stream string, expected time.Duration) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		str, err := mgr.LoadStream(stream)
+		if err != nil {
+			return err
+		}
+		if got := str.ConsumerLimits().InactiveThreshold; got != expected {
+			return fmt.Errorf("expected inactive_threshold %s got %s", expected, got)
+		}
+		return nil
+	}
+}
+
+func testConsumerHasMaxAckPending(t *testing.T, mgr *jsm.Manager, stream string, consumer string, expected int) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		cons, err := mgr.LoadConsumer(stream, consumer)
+		if err != nil {
+			return err
+		}
+		if got := cons.MaxAckPending(); got != expected {
+			return fmt.Errorf("expected max_ack_pending %d got %d", expected, got)
+		}
+		return nil
+	}
+}

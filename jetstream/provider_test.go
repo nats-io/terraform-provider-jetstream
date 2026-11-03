@@ -17,8 +17,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -202,6 +204,143 @@ func TestProviderWithInboxPrefix(t *testing.T) {
 					testBucketExist(t, mgr, "TEST"),
 					testEntryExist(ctx, t, js, "TEST", "foo"),
 				),
+			},
+		},
+	})
+}
+
+func createJSCluster(t *testing.T) []*server.Server {
+	t.Helper()
+
+	var ports []int
+	var routes []string
+	for range 3 {
+		l, err := net.Listen("tcp", "127.0.0.1:0")
+		checkErr(t, err, "could not allocate cluster port: %v", err)
+		port := l.Addr().(*net.TCPAddr).Port
+		l.Close()
+		ports = append(ports, port)
+		routes = append(routes, fmt.Sprintf("nats://127.0.0.1:%d", port))
+	}
+
+	var servers []*server.Server
+	for i, port := range ports {
+		srv, err := server.NewServer(&server.Options{
+			ServerName: fmt.Sprintf("n%d", i+1),
+			Host:       "127.0.0.1",
+			Port:       -1,
+			StoreDir:   t.TempDir(),
+			JetStream:  true,
+			Cluster: server.ClusterOpts{
+				Name: "C1",
+				Host: "127.0.0.1",
+				Port: port,
+			},
+			Routes: server.RoutesFromStr(strings.Join(routes, ",")),
+		})
+		checkErr(t, err, "could not start js server: %v", err)
+
+		go srv.Start()
+		t.Cleanup(srv.Shutdown)
+		servers = append(servers, srv)
+	}
+
+	for _, srv := range servers {
+		if !srv.ReadyForConnections(20 * time.Second) {
+			t.Fatalf("nats server did not start")
+		}
+	}
+
+	deadline := time.Now().Add(20 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, srv := range servers {
+			if srv.JetStreamIsLeader() && srv.NumRoutes() >= 2 {
+				return servers
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("cluster did not elect a JetStream meta leader")
+
+	return nil
+}
+
+func TestProviderCredentialsConflict(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV5ProviderFactories: testJsProviders,
+		Steps: []resource.TestStep{
+			{
+				Config: `
+provider "jetstream" {
+  servers         = "nats://127.0.0.1:4222"
+  credentials     = "/path/to/creds"
+  credential_data = "data"
+}
+
+resource "jetstream_kv_bucket" "test" {
+  name = "TEST"
+}
+`,
+				ExpectError: regexp.MustCompile(`only one of credentials and credential_data may be set`),
+			},
+		},
+	})
+}
+
+const testProviderCredentialDataOverridesEnv = `
+provider "jetstream" {
+  servers         = "%s"
+  credential_data = "not a credentials file"
+}
+
+resource "jetstream_kv_bucket" "test" {
+  name = "TEST"
+}
+`
+
+func TestProviderCredentialDataOverridesEnv(t *testing.T) {
+	srv := createJSServer(t)
+	defer srv.Shutdown()
+
+	t.Setenv("NATS_CREDS", "/nonexistent.creds")
+
+	resource.Test(t, resource.TestCase{
+		ProtoV5ProviderFactories: testJsProviders,
+		Steps: []resource.TestStep{
+			{
+				Config:      fmt.Sprintf(testProviderCredentialDataOverridesEnv, srv.ClientURL()),
+				ExpectError: regexp.MustCompile(`no nkey seed found`),
+			},
+		},
+	})
+}
+
+const testProviderEmptyCredentials = `
+provider "jetstream" {
+  servers         = "%s"
+  credentials     = %q
+  credential_data = %q
+}
+
+resource "jetstream_kv_bucket" "test" {
+  name = "TEST"
+}
+`
+
+func TestProviderEmptyCredentialsIgnored(t *testing.T) {
+	srv := createJSServer(t)
+	defer srv.Shutdown()
+
+	resource.Test(t, resource.TestCase{
+		ProtoV5ProviderFactories: testJsProviders,
+		Steps: []resource.TestStep{
+			{
+				Config:      fmt.Sprintf(testProviderEmptyCredentials, srv.ClientURL(), "", "not a credentials file"),
+				ExpectError: regexp.MustCompile(`no nkey seed found`),
+			},
+			{
+				Config:      fmt.Sprintf(testProviderEmptyCredentials, srv.ClientURL(), "/nonexistent.creds", ""),
+				ExpectError: regexp.MustCompile(`open /nonexistent.creds`),
 			},
 		},
 	})

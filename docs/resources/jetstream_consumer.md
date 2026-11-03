@@ -43,13 +43,13 @@ resource "jetstream_consumer" "ORDERS_NEW" {
  * `ratelimit` - (optional) The rate limit for delivering messages to push consumers, expressed in bits per second
  * `heartbeat` - (optional) Enable heartbeat messages for push consumers, duration specified in seconds
  * `flow_control` - (optional) Enable flow control for push consumers
- * `max_waiting` - (optional) The number of pulls that can be outstanding on a pull consumer, pulls received after this is reached are ignored
+ * `max_waiting` - (optional) The number of pulls that can be outstanding on a pull consumer, pulls received after this is reached are ignored. Changing it replaces the consumer
  * `headers_only` - (optional) When true no message bodies will be delivered only headers
  * `max_batch` - (optional) Limits Pull Batch sizes to this maximum
  * `max_bytes` - (optional)The maximum bytes value that maybe set when dong a pull on a Pull Consumer
  * `max_expires` - (optional) Limits the Pull Expires duration to this maximum in seconds
  * `inactive_threshold` - (optional) Removes the consumer after a idle period, specified as a duration in seconds
- * `max_ack_pending` - (optional) Maximum pending Acks before consumers are paused
+ * `max_ack_pending` - (optional) Maximum pending Acks before consumers are paused. Cannot be set on push consumers with `ack_policy` `none`
  * `replicas` - (optional) How many replicas of the data to keep in a clustered environment
  * `memory` - (optional) Force the consumer state to be kept in memory rather than inherit the setting from the stream
  * `backoff` - (optional) List of durations in Go format that represents a retry time scale for NaK'd messages. A list of durations in seconds

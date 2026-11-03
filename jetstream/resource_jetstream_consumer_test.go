@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
@@ -497,6 +498,146 @@ func TestResourceConsumer(t *testing.T) {
 					resource.TestCheckResourceAttr("jetstream_consumer.pgroup", "priority_policy", "pinned_client"),
 					resource.TestCheckResourceAttr("jetstream_consumer.pgroup", "priority_timeout", "20"),
 				),
+			},
+		},
+	})
+}
+
+const testConsumerPushAckNone = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_stream" "test" {
+  name     = "TEST"
+  subjects = ["TEST.*"]
+}
+
+resource "jetstream_consumer" "push_none" {
+  stream_id        = jetstream_stream.test.id
+  durable_name     = "PUSHNONE"
+  delivery_subject = "push.none"
+  deliver_all      = true
+  ack_policy       = "none"
+  %s
+}
+
+resource "jetstream_stream" "limited" {
+  name            = "LIMITED"
+  subjects        = ["LIMITED.*"]
+  max_ack_pending = 100
+}
+
+resource "jetstream_consumer" "limited_push_none" {
+  stream_id        = jetstream_stream.limited.id
+  durable_name     = "PUSHNONE"
+  delivery_subject = "push.limited"
+  deliver_all      = true
+  ack_policy       = "none"
+}
+`
+
+func TestConsumerPushAckNone(t *testing.T) {
+	srv := createJSServer(t)
+	defer srv.Shutdown()
+
+	nc, err := nats.Connect(srv.ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy: resource.ComposeTestCheckFunc(
+			testConsumerDoesNotExist(t, mgr, "TEST", "PUSHNONE"),
+			testConsumerDoesNotExist(t, mgr, "LIMITED", "PUSHNONE"),
+		),
+		Steps: []resource.TestStep{
+			{
+				Config:      fmt.Sprintf(testConsumerPushAckNone, nc.ConnectedUrl(), "max_ack_pending = 10"),
+				ExpectError: regexp.MustCompile(`max_ack_pending cannot be set on a push consumer with ack_policy none`),
+			},
+			{
+				Config: fmt.Sprintf(testConsumerPushAckNone, nc.ConnectedUrl(), ""),
+				Check: resource.ComposeTestCheckFunc(
+					testConsumerExist(t, mgr, "TEST", "PUSHNONE"),
+					testConsumerHasMaxAckPending(t, mgr, "TEST", "PUSHNONE", -1),
+					testConsumerExist(t, mgr, "LIMITED", "PUSHNONE"),
+					testConsumerHasMaxAckPending(t, mgr, "LIMITED", "PUSHNONE", -1),
+				),
+			},
+			{
+				ResourceName:      "jetstream_consumer.push_none",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+const testConsumerMaxWaiting = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_stream" "test" {
+  name     = "TEST"
+  subjects = ["TEST.*"]
+}
+
+resource "jetstream_consumer" "pull" {
+  stream_id    = jetstream_stream.test.id
+  durable_name = "PULL"
+  deliver_all  = true
+  max_batch    = 1
+  max_waiting  = %d
+}
+`
+
+func TestConsumerMaxWaitingForcesReplace(t *testing.T) {
+	srv := createJSServer(t)
+	defer srv.Shutdown()
+
+	nc, err := nats.Connect(srv.ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy:             testConsumerDoesNotExist(t, mgr, "TEST", "PULL"),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(testConsumerMaxWaiting, nc.ConnectedUrl(), 10),
+			},
+			{
+				Config: fmt.Sprintf(testConsumerMaxWaiting, nc.ConnectedUrl(), 20),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("jetstream_consumer.pull", plancheck.ResourceActionReplace),
+					},
+				},
+				Check: resource.TestCheckResourceAttr("jetstream_consumer.pull", "max_waiting", "20"),
+			},
+			{
+				Config: fmt.Sprintf(testConsumerMaxWaiting, nc.ConnectedUrl(), 0),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("jetstream_consumer.pull", plancheck.ResourceActionNoop),
+					},
+				},
 			},
 		},
 	})
