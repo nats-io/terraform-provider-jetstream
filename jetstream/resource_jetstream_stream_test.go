@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
@@ -338,8 +338,8 @@ func TestStreamFirstSeq(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		ProviderFactories: testJsProviders,
-		CheckDestroy:      testStreamDoesNotExist(t, mgr, "first_seq"),
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy:             testStreamDoesNotExist(t, mgr, "first_seq"),
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(testStreamFirstSeq, nc.ConnectedUrl()),
@@ -369,8 +369,8 @@ func TestStreamPersistAndBatched(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		ProviderFactories: testJsProviders,
-		CheckDestroy:      testStreamDoesNotExist(t, mgr, "persist_batched"),
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy:             testStreamDoesNotExist(t, mgr, "persist_batched"),
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(testStreamPersistAsyncBatched, nc.ConnectedUrl()),
@@ -402,7 +402,7 @@ func TestStreamSourceConsumer(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		ProviderFactories: testJsProviders,
+		ProtoV5ProviderFactories: testJsProviders,
 		CheckDestroy: resource.ComposeTestCheckFunc(
 			testStreamDoesNotExist(t, mgr, "SRC"),
 			testStreamDoesNotExist(t, mgr, "SOURCED"),
@@ -438,7 +438,7 @@ func TestResourceStream(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		ProviderFactories: testJsProviders,
+		ProtoV5ProviderFactories: testJsProviders,
 		CheckDestroy: resource.ComposeTestCheckFunc(
 			testStreamDoesNotExist(t, mgr, "TEST"),
 			testStreamDoesNotExist(t, mgr, "OTHER"),
@@ -459,6 +459,11 @@ func TestResourceStream(t *testing.T) {
 					resource.TestCheckResourceAttr("jetstream_stream.test", "compression", "s2"),
 					resource.TestCheckResourceAttr("jetstream_stream.test", "allow_msg_ttl", "true"),
 				),
+			},
+			{
+				ResourceName:      "jetstream_stream.test",
+				ImportState:       true,
+				ImportStateVerify: true,
 			},
 			{
 				Config: fmt.Sprintf(testStreamConfigOtherSubjects, nc.ConnectedUrl()),

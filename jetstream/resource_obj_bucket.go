@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/nats-io/nats.go"
@@ -27,10 +28,10 @@ import (
 
 func resourceObjBucket() *schema.Resource {
 	return &schema.Resource{
-		Create: resourceObjBucketCreate,
-		Read:   resourceObjBucketRead,
-		Update: resourceObjBucketUpdate,
-		Delete: resourceObjBucketDelete,
+		CreateContext: resourceObjBucketCreate,
+		ReadContext:   resourceObjBucketRead,
+		UpdateContext: resourceObjBucketUpdate,
+		DeleteContext: resourceObjBucketDelete,
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
 		},
@@ -105,10 +106,10 @@ func resourceObjBucket() *schema.Resource {
 	}
 }
 
-func resourceObjBucketCreate(d *schema.ResourceData, m any) error {
+func resourceObjBucketCreate(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	nc, err := getConnection(d, m)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	defer nc.Close()
 
@@ -142,24 +143,24 @@ func resourceObjBucketCreate(d *schema.ResourceData, m any) error {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	opCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	js, err := jetstream.New(nc)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
-	known, err := js.ObjectStore(ctx, name)
+	known, err := js.ObjectStore(opCtx, name)
 	if known != nil {
-		return fmt.Errorf("bucket %s already exist", name)
+		return diag.Errorf("bucket %s already exist", name)
 	} else if err != nil {
 		if !errors.Is(err, jetstream.ErrBucketNotFound) {
-			return fmt.Errorf("failed to load object store bucket: %s", err)
+			return diag.Errorf("failed to load object store bucket: %s", err)
 		}
 	}
 
-	_, err = js.CreateObjectStore(ctx, jetstream.ObjectStoreConfig{
+	_, err = js.CreateObjectStore(opCtx, jetstream.ObjectStoreConfig{
 		Bucket:      name,
 		Description: description,
 		TTL:         time.Duration(ttl) * time.Second,
@@ -170,32 +171,32 @@ func resourceObjBucketCreate(d *schema.ResourceData, m any) error {
 		Compression: compression,
 	})
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.SetId(fmt.Sprintf("JETSTREAM_OBJ_%s", name))
 
-	return resourceObjBucketRead(d, m)
+	return resourceObjBucketRead(ctx, d, m)
 }
 
-func resourceObjBucketRead(d *schema.ResourceData, m any) error {
+func resourceObjBucketRead(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	name, err := parseStreamObjID(d.Id())
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	nc, err := getConnection(d, m)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	defer nc.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	js, err := jetstream.New(nc)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	bucket, err := js.ObjectStore(ctx, name)
@@ -204,11 +205,11 @@ func resourceObjBucketRead(d *schema.ResourceData, m any) error {
 			d.SetId("")
 			return nil
 		}
-		return err
+		return diag.FromErr(err)
 	}
 	status, err := bucket.Status(ctx)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.Set("name", status.Bucket())
@@ -237,36 +238,36 @@ func resourceObjBucketRead(d *schema.ResourceData, m any) error {
 	return nil
 }
 
-func resourceObjBucketUpdate(d *schema.ResourceData, m any) error {
+func resourceObjBucketUpdate(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	name := d.Get("name").(string)
 
 	nc, err := getConnection(d, m)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	defer nc.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	opCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	js, err := jetstream.New(nc)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
-	bucket, err := js.ObjectStore(ctx, name)
+	bucket, err := js.ObjectStore(opCtx, name)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
-	status, err := bucket.Status(ctx)
+	status, err := bucket.Status(opCtx)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	oStatus := status.(*jetstream.ObjectBucketStatus)
 
-	str, err := js.Stream(ctx, oStatus.StreamInfo().Config.Name)
+	str, err := js.Stream(opCtx, oStatus.StreamInfo().Config.Name)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	cfg := jetstream.ObjectStoreConfig{
@@ -306,35 +307,35 @@ func resourceObjBucketUpdate(d *schema.ResourceData, m any) error {
 	cfg.Placement = placement
 	cfg.Compression = compression
 
-	_, err = js.CreateOrUpdateObjectStore(ctx, cfg)
+	_, err = js.CreateOrUpdateObjectStore(opCtx, cfg)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
-	return resourceObjBucketRead(d, m)
+	return resourceObjBucketRead(ctx, d, m)
 }
 
-func resourceObjBucketDelete(d *schema.ResourceData, m any) error {
+func resourceObjBucketDelete(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	name := d.Get("name").(string)
 
 	nc, err := getConnection(d, m)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	defer nc.Close()
 
 	js, err := jetstream.New(nc)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	err = js.DeleteObjectStore(ctx, name)
 	if errors.Is(err, jetstream.ErrBucketNotFound) || errors.Is(err, nats.ErrStreamNotFound) {
 		return nil
 	} else if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	return nil

@@ -22,8 +22,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov5"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
@@ -49,15 +50,15 @@ resource "jetstream_kv_entry" "test_entry" {
 }
 `
 
-var testJsProviders map[string]func() (*schema.Provider, error)
+var testJsProviders map[string]func() (tfprotov5.ProviderServer, error)
 var caPEM string
 var certPEM string
 var keyPEM string
 
 func init() {
-	testJsProviders = map[string]func() (*schema.Provider, error){
-		"jetstream": func() (*schema.Provider, error) {
-			return Provider(), nil
+	testJsProviders = map[string]func() (tfprotov5.ProviderServer, error){
+		"jetstream": func() (tfprotov5.ProviderServer, error) {
+			return schema.NewGRPCProviderServer(Provider()), nil
 		},
 	}
 
@@ -184,8 +185,8 @@ func TestProviderWithInboxPrefix(t *testing.T) {
 	defer cancel()
 
 	resource.Test(t, resource.TestCase{
-		ProviderFactories: testJsProviders,
-		CheckDestroy:      testBucketDoesNotExist(t, mgr, "TEST"),
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy:             testBucketDoesNotExist(t, mgr, "TEST"),
 		Steps: []resource.TestStep{
 			{
 				Config:      fmt.Sprintf(testInboxPrefixConfig, nc.ConnectedUrl(), `inbox_prefix = "_INBOX_terraform."`),

@@ -14,9 +14,11 @@
 package jetstream
 
 import (
+	"context"
 	"fmt"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/nats-io/jsm.go"
@@ -113,10 +115,10 @@ func resourceStream() *schema.Resource {
 	}
 
 	return &schema.Resource{
-		Create: resourceStreamCreate,
-		Read:   resourceStreamRead,
-		Update: resourceStreamUpdate,
-		Delete: resourceStreamDelete,
+		CreateContext: resourceStreamCreate,
+		ReadContext:   resourceStreamRead,
+		UpdateContext: resourceStreamUpdate,
+		DeleteContext: resourceStreamDelete,
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
 		},
@@ -412,51 +414,51 @@ func resourceStream() *schema.Resource {
 	}
 }
 
-func resourceStreamCreate(d *schema.ResourceData, m any) error {
+func resourceStreamCreate(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	cfg, requiredApiLevel, err := streamConfigFromResourceData(d)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	defer nc.Close()
 
 	level, err := apiLevel(mgr)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	if level < requiredApiLevel {
-		return fmt.Errorf("unsupported api level: %d. Requires NATS API level %d or newer", level, requiredApiLevel)
+		return diag.Errorf("unsupported api level: %d. Requires NATS API level %d or newer", level, requiredApiLevel)
 	}
 
 	_, err = mgr.NewStreamFromDefault(cfg.Name, cfg)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.SetId(fmt.Sprintf("JETSTREAM_STREAM_%s", cfg.Name))
 
-	return resourceStreamRead(d, m)
+	return resourceStreamRead(ctx, d, m)
 }
 
-func resourceStreamRead(d *schema.ResourceData, m any) error {
+func resourceStreamRead(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	name, err := parseStreamID(d.Id())
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	defer nc.Close()
 
 	known, err := mgr.IsKnownStream(name)
 	if err != nil {
-		return fmt.Errorf("could not determine if stream %q is known: %s", name, err)
+		return diag.Errorf("could not determine if stream %q is known: %s", name, err)
 	}
 	if !known {
 		d.SetId("")
@@ -465,12 +467,12 @@ func resourceStreamRead(d *schema.ResourceData, m any) error {
 
 	str, err := mgr.LoadStream(name)
 	if err != nil {
-		return fmt.Errorf("could not load stream %q: %s", name, err)
+		return diag.Errorf("could not load stream %q: %s", name, err)
 	}
 
 	compressionBytes, err := str.Compression().MarshalJSON()
 	if err != nil {
-		return fmt.Errorf("could not decode compression value %s: %s", str.Compression().String(), err)
+		return diag.Errorf("could not decode compression value %s: %s", str.Compression().String(), err)
 	}
 	compression := string(compressionBytes[1 : len(compressionBytes)-1])
 
@@ -617,18 +619,18 @@ func streamSourceConfigRead(source *api.StreamSource) map[string]any {
 	return sourceConfig
 }
 
-func resourceStreamUpdate(d *schema.ResourceData, m any) error {
+func resourceStreamUpdate(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	name := d.Get("name").(string)
 
 	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	defer nc.Close()
 
 	known, err := mgr.IsKnownStream(name)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	if !known {
 		d.SetId("")
@@ -637,42 +639,42 @@ func resourceStreamUpdate(d *schema.ResourceData, m any) error {
 
 	str, err := mgr.LoadStream(name)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	cfg, requiredApiLevel, err := streamConfigFromResourceData(d)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	level, err := apiLevel(mgr)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	if level < requiredApiLevel {
-		return fmt.Errorf("unsupported api level: %d. Requires NATS API level %d or newer", level, requiredApiLevel)
+		return diag.Errorf("unsupported api level: %d. Requires NATS API level %d or newer", level, requiredApiLevel)
 	}
 
 	err = str.UpdateConfiguration(cfg)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
-	return resourceStreamRead(d, m)
+	return resourceStreamRead(ctx, d, m)
 }
 
-func resourceStreamDelete(d *schema.ResourceData, m any) error {
+func resourceStreamDelete(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	name := d.Get("name").(string)
 
 	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	defer nc.Close()
 
 	known, err := mgr.IsKnownStream(name)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	if !known {
 		d.SetId("")
@@ -681,8 +683,8 @@ func resourceStreamDelete(d *schema.ResourceData, m any) error {
 
 	str, err := mgr.LoadStream(name)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
-	return str.Delete()
+	return diag.FromErr(str.Delete())
 }
