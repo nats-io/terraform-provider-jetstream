@@ -19,8 +19,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -56,8 +56,8 @@ func TestResourceObj(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		ProviderFactories: testJsProviders,
-		CheckDestroy:      testObjBucketDoesNotExist(t, mgr, "TEST"),
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy:             testObjBucketDoesNotExist(t, mgr, "TEST"),
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(testObj_basic, nc.ConnectedUrl()),
@@ -69,6 +69,11 @@ func TestResourceObj(t *testing.T) {
 					resource.TestCheckResourceAttr("jetstream_obj_bucket.test", "max_bucket_size", "10240"),
 					resource.TestCheckResourceAttr("jetstream_obj_bucket.test", "compression", "true"),
 				),
+			},
+			{
+				ResourceName:      "jetstream_obj_bucket.test",
+				ImportState:       true,
+				ImportStateVerify: true,
 			},
 		},
 	})
@@ -123,8 +128,8 @@ func TestResourceObjExternalDeletion(t *testing.T) {
 	defer cancel()
 
 	resource.Test(t, resource.TestCase{
-		ProviderFactories: testJsProviders,
-		CheckDestroy:      testObjBucketDoesNotExist(t, mgr, "TEST"),
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy:             testObjBucketDoesNotExist(t, mgr, "TEST"),
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(testObj_basic, nc.ConnectedUrl()),

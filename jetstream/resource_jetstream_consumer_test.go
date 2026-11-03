@@ -19,7 +19,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
@@ -297,7 +297,7 @@ func TestConsumerAckPolicies(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		ProviderFactories: testJsProviders,
+		ProtoV5ProviderFactories: testJsProviders,
 		CheckDestroy: resource.ComposeTestCheckFunc(
 			testConsumerDoesNotExist(t, mgr, "TEST", "ack_explicit"),
 			testConsumerDoesNotExist(t, mgr, "TEST", "ack_all"),
@@ -362,8 +362,8 @@ func TestFilterSubjects(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		ProviderFactories: testJsProviders,
-		CheckDestroy:      testConsumerDoesNotExist(t, mgr, "TEST", "maqs-e"),
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy:             testConsumerDoesNotExist(t, mgr, "TEST", "maqs-e"),
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(testFilterSubjectsStage1, nc.ConnectedUrl()),
@@ -423,8 +423,8 @@ func TestResourceConsumer(t *testing.T) {
 	updateBasicConfig = fmt.Sprintf(strings.ReplaceAll(updateBasicConfig, "bar", "baz"), nc.ConnectedUrl())
 
 	resource.Test(t, resource.TestCase{
-		ProviderFactories: testJsProviders,
-		CheckDestroy:      testConsumerDoesNotExist(t, mgr, "TEST", "C1"),
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy:             testConsumerDoesNotExist(t, mgr, "TEST", "C1"),
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(testConsumerConfig_basic, nc.ConnectedUrl()),
@@ -436,6 +436,11 @@ func TestResourceConsumer(t *testing.T) {
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C1", "description", "testing consumer"),
 					resource.TestCheckResourceAttr("jetstream_consumer.TEST_C1", "inactive_threshold", "60"),
 				),
+			},
+			{
+				ResourceName:      "jetstream_consumer.TEST_C1",
+				ImportState:       true,
+				ImportStateVerify: true,
 			},
 			{
 				Config: updateBasicConfig,

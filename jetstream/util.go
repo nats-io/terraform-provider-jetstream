@@ -14,6 +14,7 @@
 package jetstream
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -586,7 +587,7 @@ func getConnection(d *schema.ResourceData, m any) (*nats.Conn, error) {
 	return nc, err
 }
 
-func connectMgr(d *schema.ResourceData) (any, error) {
+func connectMgr(_ context.Context, d *schema.ResourceData) (any, diag.Diagnostics) {
 	return func() (*nats.Conn, *jsm.Manager, error) {
 		props, err := getConnectProperties(d)
 		if err != nil {

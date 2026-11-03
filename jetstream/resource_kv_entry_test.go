@@ -20,8 +20,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -72,8 +72,8 @@ func TestResourceKVEntry(t *testing.T) {
 	updateBasicConfig := strings.ReplaceAll(testKVEntry_basic, "bar", "baz")
 
 	resource.Test(t, resource.TestCase{
-		ProviderFactories: testJsProviders,
-		CheckDestroy:      testEntryDoesNotExist(ctx, t, js, "TEST", "foo"),
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy:             testEntryDoesNotExist(ctx, t, js, "TEST", "foo"),
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(testKVEntry_basic, nc.ConnectedUrl()),
@@ -85,6 +85,11 @@ func TestResourceKVEntry(t *testing.T) {
 					resource.TestCheckResourceAttr("jetstream_kv_entry.test_entry", "value", "bar"),
 					resource.TestCheckResourceAttr("jetstream_kv_entry.test_entry", "revision", "1"),
 				),
+			},
+			{
+				ResourceName:      "jetstream_kv_entry.test_entry",
+				ImportState:       true,
+				ImportStateVerify: true,
 			},
 			{
 				Config: fmt.Sprintf(updateBasicConfig, nc.ConnectedUrl()),
@@ -152,8 +157,8 @@ func TestResourceKVEntryExternalDeletion(t *testing.T) {
 	defer cancel()
 
 	resource.Test(t, resource.TestCase{
-		ProviderFactories: testJsProviders,
-		CheckDestroy:      testEntryDoesNotExist(ctx, t, js, "TEST", "foo"),
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy:             testEntryDoesNotExist(ctx, t, js, "TEST", "foo"),
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(testKVEntry_basic, nc.ConnectedUrl()),
@@ -211,8 +216,8 @@ func TestResourceKVEntryBucketExternalDeletion(t *testing.T) {
 	defer cancel()
 
 	resource.Test(t, resource.TestCase{
-		ProviderFactories: testJsProviders,
-		CheckDestroy:      testEntryDoesNotExist(ctx, t, js, "TEST", "foo"),
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy:             testEntryDoesNotExist(ctx, t, js, "TEST", "foo"),
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(testKVEntry_basic, nc.ConnectedUrl()),

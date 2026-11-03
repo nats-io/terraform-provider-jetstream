@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/nats-io/jsm.go"
@@ -30,10 +31,10 @@ import (
 
 func resourceConsumer() *schema.Resource {
 	return &schema.Resource{
-		Create: resourceConsumerCreate,
-		Read:   resourceConsumerRead,
-		Delete: resourceConsumerDelete,
-		Update: resourceConsumerUpdate,
+		CreateContext: resourceConsumerCreate,
+		ReadContext:   resourceConsumerRead,
+		DeleteContext: resourceConsumerDelete,
+		UpdateContext: resourceConsumerUpdate,
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
 		},
@@ -472,31 +473,31 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 	return cfg, requiredApiLevel, nil
 }
 
-func resourceConsumerUpdate(d *schema.ResourceData, m any) error {
+func resourceConsumerUpdate(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	stream_id := d.Get("stream_id").(string)
 	if stream_id == "" {
-		return fmt.Errorf("cannot determine stream name for update")
+		return diag.Errorf("cannot determine stream name for update")
 	}
 
 	stream, err := parseStreamID(stream_id)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	durable := d.Get("durable_name").(string)
 	if durable == "" {
-		return fmt.Errorf("cannot determine durable name for update")
+		return diag.Errorf("cannot determine durable name for update")
 	}
 
 	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	defer nc.Close()
 
 	known, err := mgr.IsKnownConsumer(stream, durable)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	if !known {
 		d.SetId("")
@@ -505,77 +506,77 @@ func resourceConsumerUpdate(d *schema.ResourceData, m any) error {
 
 	cfg, requiredApiLevel, err := consumerConfigFromResourceData(d)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	level, err := apiLevel(mgr)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	if level < requiredApiLevel {
-		return fmt.Errorf("unsupported api level: %d. Requires NATS API level %d or newer", level, requiredApiLevel)
+		return diag.Errorf("unsupported api level: %d. Requires NATS API level %d or newer", level, requiredApiLevel)
 	}
 
 	// We call NewconsumerFromDefault because of the idempotent way consumers are created/updated
 	// If the consumer already exists, it will be updated, and if not we'll exit before we get here
 	_, err = mgr.NewConsumerFromDefault(stream, cfg)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
-	return resourceConsumerRead(d, m)
+	return resourceConsumerRead(ctx, d, m)
 }
 
-func resourceConsumerCreate(d *schema.ResourceData, m any) error {
+func resourceConsumerCreate(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	cfg, requiredApiLevel, err := consumerConfigFromResourceData(d)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	stream, err := parseStreamID(d.Get("stream_id").(string))
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	defer nc.Close()
 
 	level, err := apiLevel(mgr)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	if level < requiredApiLevel {
-		return fmt.Errorf("unsupported api level: %d. Requires NATS API level %d or newer", level, requiredApiLevel)
+		return diag.Errorf("unsupported api level: %d. Requires NATS API level %d or newer", level, requiredApiLevel)
 	}
 
 	_, err = mgr.NewConsumerFromDefault(stream, cfg)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.SetId(fmt.Sprintf("JETSTREAM_STREAM_%s_CONSUMER_%s", stream, cfg.Durable))
 
-	return resourceConsumerRead(d, m)
+	return resourceConsumerRead(ctx, d, m)
 }
 
-func resourceConsumerRead(d *schema.ResourceData, m any) error {
+func resourceConsumerRead(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	stream, name, err := parseConsumerID(d.Id())
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	defer nc.Close()
 
 	known, err := mgr.IsKnownStream(stream)
 	if err != nil {
-		return fmt.Errorf("could not determine if stream %q is known: %s", name, err)
+		return diag.Errorf("could not determine if stream %q is known: %s", name, err)
 	}
 	if !known {
 		d.SetId("")
@@ -584,7 +585,7 @@ func resourceConsumerRead(d *schema.ResourceData, m any) error {
 
 	known, err = mgr.IsKnownConsumer(stream, name)
 	if err != nil {
-		return fmt.Errorf("could not determine if %q > %q is a known consumer: %s", stream, name, err)
+		return diag.Errorf("could not determine if %q > %q is a known consumer: %s", stream, name, err)
 	}
 	if !known {
 		d.SetId("")
@@ -593,7 +594,7 @@ func resourceConsumerRead(d *schema.ResourceData, m any) error {
 
 	cons, err := mgr.LoadConsumer(stream, name)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.Set("stream_id", fmt.Sprintf("JETSTREAM_STREAM_%s", stream))
@@ -642,7 +643,7 @@ func resourceConsumerRead(d *schema.ResourceData, m any) error {
 		s := strings.TrimSuffix(cons.SampleFrequency(), "%")
 		freq, err := strconv.Atoi(s)
 		if err != nil {
-			return fmt.Errorf("failed to parse consumer sampling configuration: %v", err)
+			return diag.Errorf("failed to parse consumer sampling configuration: %v", err)
 		}
 		d.Set("sample_freq", freq)
 	} else {
@@ -692,21 +693,21 @@ func resourceConsumerRead(d *schema.ResourceData, m any) error {
 	return nil
 }
 
-func resourceConsumerDelete(d *schema.ResourceData, m any) error {
+func resourceConsumerDelete(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	streamName, durableName, err := parseConsumerID(d.Id())
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	defer nc.Close()
 
 	known, err := mgr.IsKnownConsumer(streamName, durableName)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	if !known {
 		d.SetId("")
@@ -715,8 +716,8 @@ func resourceConsumerDelete(d *schema.ResourceData, m any) error {
 
 	cons, err := mgr.LoadConsumer(streamName, durableName)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
-	return cons.Delete()
+	return diag.FromErr(cons.Delete())
 }

@@ -117,6 +117,6 @@ func Provider() *schema.Provider {
 			"jetstream_obj_bucket": resourceObjBucket(),
 		},
 
-		ConfigureFunc: connectMgr,
+		ConfigureContextFunc: connectMgr,
 	}
 }

@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/nats-io/nats.go"
@@ -27,10 +28,10 @@ import (
 
 func resourceKVBucket() *schema.Resource {
 	return &schema.Resource{
-		Create: resourceKVBucketCreate,
-		Read:   resourceKVBucketRead,
-		Update: resourceKVBucketUpdate,
-		Delete: resourceKVBucketDelete,
+		CreateContext: resourceKVBucketCreate,
+		ReadContext:   resourceKVBucketRead,
+		UpdateContext: resourceKVBucketUpdate,
+		DeleteContext: resourceKVBucketDelete,
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
 		},
@@ -122,10 +123,10 @@ func resourceKVBucket() *schema.Resource {
 	}
 }
 
-func resourceKVBucketCreate(d *schema.ResourceData, m any) error {
+func resourceKVBucketCreate(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	nc, err := getConnection(d, m)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	defer nc.Close()
 
@@ -161,24 +162,24 @@ func resourceKVBucketCreate(d *schema.ResourceData, m any) error {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	opCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	js, err := jetstream.New(nc)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
-	known, err := js.KeyValue(ctx, name)
+	known, err := js.KeyValue(opCtx, name)
 	if known != nil {
-		return fmt.Errorf("bucket %s already exist", name)
+		return diag.Errorf("bucket %s already exist", name)
 	} else if err != nil {
 		if !errors.Is(err, jetstream.ErrBucketNotFound) {
-			return fmt.Errorf("failed to load KV bucket: %s", err)
+			return diag.Errorf("failed to load KV bucket: %s", err)
 		}
 	}
 
-	js.CreateKeyValue(ctx, jetstream.KeyValueConfig{
+	js.CreateKeyValue(opCtx, jetstream.KeyValueConfig{
 		Bucket:         name,
 		Description:    descrption,
 		MaxValueSize:   int32(maxV),
@@ -193,27 +194,27 @@ func resourceKVBucketCreate(d *schema.ResourceData, m any) error {
 
 	d.SetId(fmt.Sprintf("JETSTREAM_KV_%s", name))
 
-	return resourceKVBucketRead(d, m)
+	return resourceKVBucketRead(ctx, d, m)
 }
 
-func resourceKVBucketRead(d *schema.ResourceData, m any) error {
+func resourceKVBucketRead(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	name, err := parseStreamKVID(d.Id())
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	nc, err := getConnection(d, m)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	defer nc.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	js, err := jetstream.New(nc)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	bucket, err := js.KeyValue(ctx, name)
@@ -222,11 +223,11 @@ func resourceKVBucketRead(d *schema.ResourceData, m any) error {
 			d.SetId("")
 			return nil
 		}
-		return err
+		return diag.FromErr(err)
 	}
 	status, err := bucket.Status(ctx)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.Set("name", status.Bucket())
@@ -258,36 +259,36 @@ func resourceKVBucketRead(d *schema.ResourceData, m any) error {
 	return nil
 }
 
-func resourceKVBucketUpdate(d *schema.ResourceData, m any) error {
+func resourceKVBucketUpdate(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	name := d.Get("name").(string)
 
 	nc, err := getConnection(d, m)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	defer nc.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	opCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	js, err := jetstream.New(nc)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
-	bucket, err := js.KeyValue(ctx, name)
+	bucket, err := js.KeyValue(opCtx, name)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
-	status, err := bucket.Status(ctx)
+	status, err := bucket.Status(opCtx)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	jStatus := status.(*jetstream.KeyValueBucketStatus)
 
-	str, err := js.Stream(ctx, jStatus.StreamInfo().Config.Name)
+	str, err := js.Stream(opCtx, jStatus.StreamInfo().Config.Name)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	cfg := jetstream.KeyValueConfig{
@@ -334,35 +335,35 @@ func resourceKVBucketUpdate(d *schema.ResourceData, m any) error {
 	cfg.LimitMarkerTTL = time.Duration(markerTTL) * time.Second
 	cfg.Placement = placement
 
-	_, err = js.CreateOrUpdateKeyValue(ctx, cfg)
+	_, err = js.CreateOrUpdateKeyValue(opCtx, cfg)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
-	return resourceKVBucketRead(d, m)
+	return resourceKVBucketRead(ctx, d, m)
 }
 
-func resourceKVBucketDelete(d *schema.ResourceData, m any) error {
+func resourceKVBucketDelete(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	name := d.Get("name").(string)
 
 	nc, err := getConnection(d, m)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	defer nc.Close()
 
 	js, err := jetstream.New(nc)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	err = js.DeleteKeyValue(ctx, name)
 	if err == nats.ErrStreamNotFound {
 		return nil
 	} else if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	return nil

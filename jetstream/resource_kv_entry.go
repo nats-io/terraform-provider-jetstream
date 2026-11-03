@@ -19,16 +19,17 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
 func resourceKVEntry() *schema.Resource {
 	return &schema.Resource{
-		Create: resourceKVEntryCreate,
-		Read:   resourceKVEntryRead,
-		Update: resourceKVEntryUpdate,
-		Delete: resourceKVEntryDelete,
+		CreateContext: resourceKVEntryCreate,
+		ReadContext:   resourceKVEntryRead,
+		UpdateContext: resourceKVEntryUpdate,
+		DeleteContext: resourceKVEntryDelete,
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
 		},
@@ -61,10 +62,10 @@ func resourceKVEntry() *schema.Resource {
 	}
 }
 
-func resourceKVEntryCreate(d *schema.ResourceData, m any) error {
+func resourceKVEntryCreate(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	nc, err := getConnection(d, m)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	defer nc.Close()
 
@@ -74,42 +75,42 @@ func resourceKVEntryCreate(d *schema.ResourceData, m any) error {
 
 	js, err := jetstream.New(nc)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	opCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	kv, err := js.KeyValue(ctx, bucket)
+	kv, err := js.KeyValue(opCtx, bucket)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
-	_, err = kv.Put(ctx, key, []byte(value))
+	_, err = kv.Put(opCtx, key, []byte(value))
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.SetId(fmt.Sprintf("JETSTREAM_KV_%s_ENTRY_%s", bucket, key))
 
-	return resourceKVEntryRead(d, m)
+	return resourceKVEntryRead(ctx, d, m)
 }
 
-func resourceKVEntryRead(d *schema.ResourceData, m any) error {
+func resourceKVEntryRead(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	bucket, key, err := parseStreamKVEntryID(d.Id())
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	nc, err := getConnection(d, m)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	defer nc.Close()
 
 	js, err := jetstream.New(nc)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	kv, err := js.KeyValue(ctx, bucket)
@@ -118,7 +119,7 @@ func resourceKVEntryRead(d *schema.ResourceData, m any) error {
 			d.SetId("")
 			return nil
 		}
-		return err
+		return diag.FromErr(err)
 	}
 
 	entry, err := kv.Get(ctx, key)
@@ -127,7 +128,7 @@ func resourceKVEntryRead(d *schema.ResourceData, m any) error {
 			d.SetId("")
 			return nil
 		}
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.Set("bucket", entry.Bucket())
@@ -138,61 +139,61 @@ func resourceKVEntryRead(d *schema.ResourceData, m any) error {
 	return nil
 }
 
-func resourceKVEntryUpdate(d *schema.ResourceData, m any) error {
+func resourceKVEntryUpdate(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	bucket := d.Get("bucket").(string)
 
 	nc, err := getConnection(d, m)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	defer nc.Close()
 
 	js, err := jetstream.New(nc)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	opCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	kv, err := js.KeyValue(ctx, bucket)
+	kv, err := js.KeyValue(opCtx, bucket)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	key := d.Get("key").(string)
 	value := d.Get("value").(string)
 
-	_, err = kv.Put(ctx, key, []byte(value))
+	_, err = kv.Put(opCtx, key, []byte(value))
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
-	return resourceKVEntryRead(d, m)
+	return resourceKVEntryRead(ctx, d, m)
 }
 
-func resourceKVEntryDelete(d *schema.ResourceData, m any) error {
+func resourceKVEntryDelete(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	bucket := d.Get("bucket").(string)
 
 	nc, err := getConnection(d, m)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	defer nc.Close()
 
 	js, err := jetstream.New(nc)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	kv, err := js.KeyValue(ctx, bucket)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	err = kv.Delete(ctx, d.Get("key").(string))
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	return nil
