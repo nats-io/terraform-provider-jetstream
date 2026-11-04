@@ -657,8 +657,6 @@ func resourceConsumerRead(ctx context.Context, d *schema.ResourceData, m any) di
 		d.Set("deliver_last_per_subject", true)
 	case api.DeliverByStartSequence:
 		d.Set("stream_sequence", cons.StartSequence())
-	case api.DeliverByStartTime:
-		d.Set("start_time", cons.StartTime())
 	}
 
 	if len(cons.SampleFrequency()) > 0 {

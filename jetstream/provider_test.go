@@ -19,6 +19,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -28,9 +29,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"github.com/nats-io/nkeys"
 )
 
 const testInboxPrefixConfig = `
@@ -227,6 +230,7 @@ func createJSCluster(t *testing.T) []*server.Server {
 	for i, port := range ports {
 		srv, err := server.NewServer(&server.Options{
 			ServerName: fmt.Sprintf("n%d", i+1),
+			Tags:       jwt.TagList{"az:1"},
 			Host:       "127.0.0.1",
 			Port:       -1,
 			StoreDir:   t.TempDir(),
@@ -341,6 +345,127 @@ func TestProviderEmptyCredentialsIgnored(t *testing.T) {
 			{
 				Config:      fmt.Sprintf(testProviderEmptyCredentials, srv.ClientURL(), "/nonexistent.creds", ""),
 				ExpectError: regexp.MustCompile(`open /nonexistent.creds`),
+			},
+		},
+	})
+}
+
+const testProviderNkey = `
+provider "jetstream" {
+  servers = "%s"
+  nkey    = "%s"
+}
+
+resource "jetstream_kv_bucket" "test" {
+  name = "TEST"
+}
+`
+
+func TestProviderWithNkey(t *testing.T) {
+	user, err := nkeys.CreateUser()
+	checkErr(t, err, "could not create nkey: %v", err)
+	pub, err := user.PublicKey()
+	checkErr(t, err, "could not read public key: %v", err)
+	seed, err := user.Seed()
+	checkErr(t, err, "could not read seed: %v", err)
+
+	seedFile := filepath.Join(t.TempDir(), "user.nk")
+	err = os.WriteFile(seedFile, seed, 0600)
+	checkErr(t, err, "could not write seed: %v", err)
+
+	srv, err := server.NewServer(&server.Options{
+		Port:      -1,
+		StoreDir:  t.TempDir(),
+		JetStream: true,
+		Nkeys:     []*server.NkeyUser{{Nkey: pub}},
+	})
+	checkErr(t, err, "could not start js server: %v", err)
+	go srv.Start()
+	defer srv.Shutdown()
+	if !srv.ReadyForConnections(10 * time.Second) {
+		t.Fatalf("nats server did not start")
+	}
+
+	nko, err := nats.NkeyOptionFromSeed(seedFile)
+	checkErr(t, err, "could not load seed: %v", err)
+	nc, err := nats.Connect(srv.ClientURL(), nko)
+	checkErr(t, err, "could not connect: %v", err)
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	checkErr(t, err, "could not connect: %v", err)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy:             testBucketDoesNotExist(t, mgr, "TEST"),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(testProviderNkey, srv.ClientURL(), seedFile),
+				Check:  testBucketExist(t, mgr, "TEST"),
+			},
+		},
+	})
+}
+
+const testProviderAuthConflict = `
+provider "jetstream" {
+  servers = "nats://127.0.0.1:4222"
+  %s
+}
+
+resource "jetstream_kv_bucket" "test" {
+  name = "TEST"
+}
+`
+
+func TestProviderAuthConflicts(t *testing.T) {
+	for _, auth := range []string{
+		"user = \"u\"\n  nkey = \"/seed.nk\"",
+		"user = \"u\"\n  credentials = \"/user.creds\"",
+		"user = \"u\"\n  credential_data = \"data\"",
+		"nkey = \"/seed.nk\"\n  credentials = \"/user.creds\"",
+		"nkey = \"/seed.nk\"\n  credential_data = \"data\"",
+	} {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			Steps: []resource.TestStep{
+				{
+					Config:      fmt.Sprintf(testProviderAuthConflict, auth),
+					ExpectError: regexp.MustCompile(`conflicts with`),
+				},
+			},
+		})
+	}
+}
+
+const testProviderServersFromEnv = `
+provider "jetstream" {}
+
+resource "jetstream_kv_bucket" "test" {
+  name = "TEST"
+}
+`
+
+func TestProviderServersFromEnv(t *testing.T) {
+	srv := createJSServer(t)
+	defer srv.Shutdown()
+
+	nc, err := nats.Connect(srv.ClientURL())
+	checkErr(t, err, "could not connect: %v", err)
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	checkErr(t, err, "could not connect: %v", err)
+
+	t.Setenv("NATS_URL", srv.ClientURL())
+
+	resource.Test(t, resource.TestCase{
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy:             testBucketDoesNotExist(t, mgr, "TEST"),
+		Steps: []resource.TestStep{
+			{
+				Config: testProviderServersFromEnv,
+				Check:  testBucketExist(t, mgr, "TEST"),
 			},
 		},
 	})

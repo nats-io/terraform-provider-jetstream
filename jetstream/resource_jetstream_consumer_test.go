@@ -642,3 +642,174 @@ func TestConsumerMaxWaitingForcesReplace(t *testing.T) {
 		},
 	})
 }
+
+const testConsumerAllAttributes = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_stream" "test" {
+  name     = "TEST"
+  subjects = ["TEST.*"]
+}
+
+resource "jetstream_consumer" "test" {
+  stream_id    = jetstream_stream.test.id
+  durable_name = "C1"
+  deliver_all  = true
+  max_batch    = 1
+  headers_only = %t
+  max_bytes    = %d
+  max_expires  = %d
+  sample_freq  = %d
+}
+`
+
+func TestConsumerAllAttributes(t *testing.T) {
+	srv := createJSServer(t)
+	defer srv.Shutdown()
+
+	nc, err := nats.Connect(srv.ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy:             testConsumerDoesNotExist(t, mgr, "TEST", "C1"),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(testConsumerAllAttributes, nc.ConnectedUrl(), true, 1024, 30, 50),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("jetstream_consumer.test", "headers_only", "true"),
+					resource.TestCheckResourceAttr("jetstream_consumer.test", "max_bytes", "1024"),
+					resource.TestCheckResourceAttr("jetstream_consumer.test", "max_expires", "30"),
+					resource.TestCheckResourceAttr("jetstream_consumer.test", "sample_freq", "50"),
+				),
+			},
+			{
+				Config: fmt.Sprintf(testConsumerAllAttributes, nc.ConnectedUrl(), false, 2048, 60, 75),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("jetstream_consumer.test", plancheck.ResourceActionUpdate),
+					},
+				},
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("jetstream_consumer.test", "headers_only", "false"),
+					resource.TestCheckResourceAttr("jetstream_consumer.test", "max_bytes", "2048"),
+					resource.TestCheckResourceAttr("jetstream_consumer.test", "max_expires", "60"),
+					resource.TestCheckResourceAttr("jetstream_consumer.test", "sample_freq", "75"),
+				),
+			},
+			{
+				ResourceName:      "jetstream_consumer.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+const testConsumerForceNew = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_stream" "test" {
+  name     = "TEST"
+  subjects = ["TEST.*"]
+}
+
+resource "jetstream_stream" "other" {
+  name     = "OTHER"
+  subjects = ["OTHER.*"]
+}
+
+resource "jetstream_consumer" "test" {
+%s
+}
+`
+
+func TestConsumerForceNewAttributes(t *testing.T) {
+	srv := createJSServer(t)
+	defer srv.Shutdown()
+
+	nc, err := nats.Connect(srv.ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	const pull = "  stream_id = jetstream_stream.test.id\n  durable_name = \"C1\"\n  max_batch = 1\n"
+	const pullAll = pull + "  deliver_all = true\n"
+	const push = "  stream_id = jetstream_stream.test.id\n  durable_name = \"C1\"\n  delivery_subject = \"push.c1\"\n  deliver_all = true\n"
+
+	cases := []struct {
+		attr   string
+		before string
+		after  string
+		want   string
+	}{
+		{"stream_id", pullAll, "  stream_id = jetstream_stream.other.id\n  durable_name = \"C1\"\n  max_batch = 1\n  deliver_all = true\n", "JETSTREAM_STREAM_OTHER"},
+		{"durable_name", pullAll, "  stream_id = jetstream_stream.test.id\n  durable_name = \"C2\"\n  max_batch = 1\n  deliver_all = true\n", "C2"},
+		{"deliver_new", pullAll, pull + "  deliver_new = true", "true"},
+		{"deliver_last", pullAll, pull + "  deliver_last = true", "true"},
+		{"deliver_last_per_subject", pullAll + "  filter_subject = \"TEST.a\"", pull + "  filter_subject = \"TEST.a\"\n  deliver_last_per_subject = true", "true"},
+		{"stream_sequence", pull + "  stream_sequence = 10", pull + "  stream_sequence = 20", "20"},
+		{"start_time", pull + "  start_time = \"2025-01-01T00:00:00Z\"", pull + "  start_time = \"2025-06-01T00:00:00Z\"", "2025-06-01T00:00:00Z"},
+		{"ack_policy", pullAll + "  ack_policy = \"explicit\"", pullAll + "  ack_policy = \"all\"", "all"},
+		{"replay_policy", pullAll + "  replay_policy = \"instant\"", pullAll + "  replay_policy = \"original\"", "original"},
+		{"memory", pullAll + "  memory = false", pullAll + "  memory = true", "true"},
+		{"replicas", pullAll + "  replicas = 0", pullAll + "  replicas = 1", "1"},
+		{"priority_policy", pullAll + "  priority_policy = \"overflow\"\n  priority_groups = [\"A\"]", pullAll + "  priority_policy = \"pinned_client\"\n  priority_groups = [\"A\"]\n  priority_timeout = 120", "pinned_client"},
+		{"priority_groups.0", pullAll + "  priority_policy = \"overflow\"\n  priority_groups = [\"A\"]", pullAll + "  priority_policy = \"overflow\"\n  priority_groups = [\"B\"]", "B"},
+		{"priority_timeout", pullAll + "  priority_policy = \"pinned_client\"\n  priority_groups = [\"A\"]\n  priority_timeout = 60", pullAll + "  priority_policy = \"pinned_client\"\n  priority_groups = [\"A\"]\n  priority_timeout = 120", "120"},
+		{"delivery_group", push, push + "  delivery_group = \"group\"", "group"},
+		{"ratelimit", push + "  ratelimit = 0", push + "  ratelimit = 1000000", "1000000"},
+		{"heartbeat", push + "  heartbeat = 0", push + "  heartbeat = 5", "5"},
+		{"flow_control", push + "  heartbeat = 5\n  flow_control = false", push + "  heartbeat = 5\n  flow_control = true", "true"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.attr, func(t *testing.T) {
+			resource.Test(t, resource.TestCase{
+				ProtoV5ProviderFactories: testJsProviders,
+				CheckDestroy: resource.ComposeTestCheckFunc(
+					testConsumerDoesNotExist(t, mgr, "TEST", "C1"),
+					testConsumerDoesNotExist(t, mgr, "TEST", "C2"),
+					testConsumerDoesNotExist(t, mgr, "OTHER", "C1"),
+				),
+				Steps: []resource.TestStep{
+					{
+						Config: fmt.Sprintf(testConsumerForceNew, nc.ConnectedUrl(), c.before),
+					},
+					{
+						Config: fmt.Sprintf(testConsumerForceNew, nc.ConnectedUrl(), c.after),
+						ConfigPlanChecks: resource.ConfigPlanChecks{
+							PreApply: []plancheck.PlanCheck{
+								plancheck.ExpectResourceAction("jetstream_consumer.test", plancheck.ResourceActionReplace),
+							},
+						},
+						Check: resource.TestCheckResourceAttr("jetstream_consumer.test", c.attr, c.want),
+					},
+					{
+						ResourceName:      "jetstream_consumer.test",
+						ImportState:       true,
+						ImportStateVerify: true,
+					},
+				},
+			})
+		})
+	}
+}
