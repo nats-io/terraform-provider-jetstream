@@ -464,3 +464,27 @@ func testConsumerHasMaxAckPending(t *testing.T, mgr *jsm.Manager, stream string,
 		return nil
 	}
 }
+
+func updateStreamConfig(t *testing.T, mgr *jsm.Manager, stream string, update func(*api.StreamConfig)) {
+	t.Helper()
+
+	str, err := mgr.LoadStream(stream)
+	checkErr(t, err, "could not load stream %s: %v", stream, err)
+
+	cfg := str.Configuration()
+	update(&cfg)
+
+	err = str.UpdateConfiguration(cfg)
+	checkErr(t, err, "could not update stream %s: %v", stream, err)
+}
+
+func testStreamConfig(t *testing.T, mgr *jsm.Manager, stream string, check func(api.StreamConfig) error) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		str, err := mgr.LoadStream(stream)
+		if err != nil {
+			return err
+		}
+
+		return check(str.Configuration())
+	}
+}

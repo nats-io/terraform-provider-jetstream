@@ -641,6 +641,7 @@ resource "jetstream_stream" "origin" {
 
 resource "jetstream_stream" "test" {
   name = "TEST"
+  %s
   mirror {
     name = jetstream_stream.origin.name
   }
@@ -648,8 +649,16 @@ resource "jetstream_stream" "test" {
 `
 
 func TestStreamMirrorDuplicateWindow(t *testing.T) {
-	for _, clustered := range []bool{false, true} {
-		t.Run(fmt.Sprintf("clustered=%v", clustered), func(t *testing.T) {
+	for _, tc := range []struct {
+		clustered bool
+		window    string
+	}{
+		{false, ""},
+		{true, ""},
+		{false, "duplicate_window = 60"},
+	} {
+		clustered := tc.clustered
+		t.Run(fmt.Sprintf("clustered=%v,window_set=%v", clustered, tc.window != ""), func(t *testing.T) {
 			var url string
 			if clustered {
 				url = createJSCluster(t)[0].ClientURL()
@@ -678,7 +687,7 @@ func TestStreamMirrorDuplicateWindow(t *testing.T) {
 				),
 				Steps: []resource.TestStep{
 					{
-						Config: fmt.Sprintf(testStreamMirrorDuplicateWindow, nc.ConnectedUrl()),
+						Config: fmt.Sprintf(testStreamMirrorDuplicateWindow, nc.ConnectedUrl(), tc.window),
 						Check:  testStreamHasDuplicateWindow(t, mgr, "TEST", 0),
 					},
 				},
@@ -878,4 +887,183 @@ func TestStreamDenyUnknownValueUpdatesInPlace(t *testing.T) {
 			},
 		},
 	})
+}
+
+const testStreamAllAttributes = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_stream" "origin" {
+  name     = "ORIGIN"
+  subjects = ["origin.>"]
+}
+
+resource "jetstream_stream" "test" {
+  name                    = "TEST"
+  subjects                = ["TEST.*"]
+  retention               = "interest"
+  discard                 = "%s"
+  discard_new_per_subject = %t
+  max_msgs_per_subject    = 10
+  max_bytes               = %d
+  max_consumers           = 10
+  max_msg_size            = %d
+  ack                     = false
+  placement_cluster       = "C1"
+  placement_tags          = ["az:1"]
+  republish_source        = ">"
+  republish_destination   = "%s"
+  republish_headers_only  = %t
+
+  source {
+    name       = jetstream_stream.origin.name
+    start_time = "2025-01-01T00:00:00Z"
+  }
+}
+`
+
+func TestStreamAllAttributes(t *testing.T) {
+	servers := createJSCluster(t)
+
+	nc, err := nats.Connect(servers[0].ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy: resource.ComposeTestCheckFunc(
+			testStreamDoesNotExist(t, mgr, "TEST"),
+			testStreamDoesNotExist(t, mgr, "ORIGIN"),
+		),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(testStreamAllAttributes, nc.ConnectedUrl(), "new", true, 1048576, 1024, "republished.>", true),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("jetstream_stream.test", "retention", "interest"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "discard", "new"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "discard_new_per_subject", "true"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "max_bytes", "1048576"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "max_consumers", "10"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "max_msg_size", "1024"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "ack", "false"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "placement_cluster", "C1"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "placement_tags.0", "az:1"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "republish_source", ">"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "republish_destination", "republished.>"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "republish_headers_only", "true"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "source.0.start_time", "2025-01-01T00:00:00Z"),
+				),
+			},
+			{
+				Config: fmt.Sprintf(testStreamAllAttributes, nc.ConnectedUrl(), "old", false, 2097152, 2048, "other.>", false),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("jetstream_stream.test", plancheck.ResourceActionUpdate),
+					},
+				},
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("jetstream_stream.test", "discard", "old"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "discard_new_per_subject", "false"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "max_bytes", "2097152"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "max_msg_size", "2048"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "republish_destination", "other.>"),
+					resource.TestCheckResourceAttr("jetstream_stream.test", "republish_headers_only", "false"),
+				),
+			},
+			{
+				ResourceName:      "jetstream_stream.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+const testStreamForceNew = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_stream" "origin" {
+  name         = "ORIGIN_A"
+  subjects     = ["a.>"]
+  allow_direct = false
+}
+
+resource "jetstream_stream" "test" {
+%s
+}
+`
+
+func TestStreamForceNewAttributes(t *testing.T) {
+	srv := createJSServer(t)
+	defer srv.Shutdown()
+
+	nc, err := nats.Connect(srv.ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	const base = "  name = \"TEST\"\n  subjects = [\"TEST.*\"]\n"
+
+	cases := []struct {
+		attr   string
+		before string
+		after  string
+		want   string
+	}{
+		{"name", base, "  name = \"TEST2\"\n  subjects = [\"TEST.*\"]\n", "TEST2"},
+		{"storage", base + "  storage = \"file\"", base + "  storage = \"memory\"", "memory"},
+		{"mirror.0.name", base, "  name = \"TEST\"\n  mirror {\n    name = jetstream_stream.origin.name\n  }", "ORIGIN_A"},
+		{"allow_msg_ttl", base + "  allow_msg_ttl = false", base + "  allow_msg_ttl = true", "true"},
+		{"allow_msg_counter", base + "  allow_msg_counter = false", base + "  allow_msg_counter = true", "true"},
+		{"allow_msg_schedules", base + "  allow_rollup_hdrs = true\n  allow_msg_schedules = false", base + "  allow_rollup_hdrs = true\n  allow_msg_schedules = true", "true"},
+		{"first_seq", base + "  first_seq = 5", base + "  first_seq = 10", "10"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.attr, func(t *testing.T) {
+			resource.Test(t, resource.TestCase{
+				ProtoV5ProviderFactories: testJsProviders,
+				CheckDestroy: resource.ComposeTestCheckFunc(
+					testStreamDoesNotExist(t, mgr, "TEST"),
+					testStreamDoesNotExist(t, mgr, "TEST2"),
+					testStreamDoesNotExist(t, mgr, "ORIGIN_A"),
+				),
+				Steps: []resource.TestStep{
+					{
+						Config: fmt.Sprintf(testStreamForceNew, nc.ConnectedUrl(), c.before),
+					},
+					{
+						Config: fmt.Sprintf(testStreamForceNew, nc.ConnectedUrl(), c.after),
+						ConfigPlanChecks: resource.ConfigPlanChecks{
+							PreApply: []plancheck.PlanCheck{
+								plancheck.ExpectResourceAction("jetstream_stream.test", plancheck.ResourceActionReplace),
+							},
+						},
+						Check: resource.TestCheckResourceAttr("jetstream_stream.test", c.attr, c.want),
+					},
+					{
+						ResourceName:      "jetstream_stream.test",
+						ImportState:       true,
+						ImportStateVerify: true,
+					},
+				},
+			})
+		})
+	}
 }

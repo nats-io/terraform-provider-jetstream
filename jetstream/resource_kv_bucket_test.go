@@ -20,8 +20,10 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -200,6 +202,148 @@ func TestResourceKVReplicasUpdate(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					testStreamHasReplicas(t, mgr, "KV_TEST", 1),
 					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "replicas", "1"),
+				),
+			},
+		},
+	})
+}
+
+const testKVPlacement = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_kv_bucket" "test" {
+  name              = "TEST"
+  description       = "%s"
+  placement_cluster = "C1"
+  placement_tags    = ["az:1"]
+}
+`
+
+func TestResourceKVPlacement(t *testing.T) {
+	servers := createJSCluster(t)
+
+	nc, err := nats.Connect(servers[0].ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy:             testBucketDoesNotExist(t, mgr, "TEST"),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(testKVPlacement, nc.ConnectedUrl(), "one"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "placement_cluster", "C1"),
+					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "placement_tags.0", "az:1"),
+				),
+			},
+			{
+				Config: fmt.Sprintf(testKVPlacement, nc.ConnectedUrl(), "two"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("jetstream_kv_bucket.test", plancheck.ResourceActionUpdate),
+					},
+				},
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "placement_cluster", "C1"),
+					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "placement_tags.0", "az:1"),
+					testStreamConfig(t, mgr, "KV_TEST", func(cfg api.StreamConfig) error {
+						if cfg.Placement == nil || cfg.Placement.Cluster != "C1" {
+							return fmt.Errorf("expected placement in cluster C1, got %+v", cfg.Placement)
+						}
+						return nil
+					}),
+				),
+			},
+			{
+				ResourceName:      "jetstream_kv_bucket.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+const testKVUnmanagedSettings = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_kv_bucket" "origin" {
+  name = "ORIGIN"
+}
+
+resource "jetstream_kv_bucket" "test" {
+  name    = "TEST"
+  history = %d
+}
+`
+
+func TestResourceKVUpdateKeepsUnmanagedSettings(t *testing.T) {
+	srv := createJSServer(t)
+	defer srv.Shutdown()
+
+	nc, err := nats.Connect(srv.ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy: resource.ComposeTestCheckFunc(
+			testBucketDoesNotExist(t, mgr, "TEST"),
+			testBucketDoesNotExist(t, mgr, "ORIGIN"),
+		),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(testKVUnmanagedSettings, nc.ConnectedUrl(), 5),
+			},
+			{
+				PreConfig: func() {
+					updateStreamConfig(t, mgr, "KV_TEST", func(cfg *api.StreamConfig) {
+						cfg.RePublish = &api.RePublish{Source: "$KV.TEST.>", Destination: "rp.TEST.>"}
+						cfg.Compression = api.S2Compression
+						cfg.Sources = []*api.StreamSource{{
+							Name:              "KV_ORIGIN",
+							SubjectTransforms: []api.SubjectTransformConfig{{Source: "$KV.ORIGIN.>", Destination: "$KV.TEST.>"}},
+						}}
+					})
+				},
+				Config: fmt.Sprintf(testKVUnmanagedSettings, nc.ConnectedUrl(), 10),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("jetstream_kv_bucket.test", plancheck.ResourceActionUpdate),
+					},
+				},
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "history", "10"),
+					testStreamConfig(t, mgr, "KV_TEST", func(cfg api.StreamConfig) error {
+						if cfg.RePublish == nil || cfg.RePublish.Destination != "rp.TEST.>" {
+							return fmt.Errorf("expected republish to rp.TEST.>, got %+v", cfg.RePublish)
+						}
+						if cfg.Compression != api.S2Compression {
+							return fmt.Errorf("expected s2 compression, got %v", cfg.Compression)
+						}
+						if len(cfg.Sources) != 1 || cfg.Sources[0].Name != "KV_ORIGIN" {
+							return fmt.Errorf("expected source KV_ORIGIN, got %+v", cfg.Sources)
+						}
+						return nil
+					}),
 				),
 			},
 		},

@@ -20,8 +20,10 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -149,6 +151,133 @@ func TestResourceObjExternalDeletion(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					testObjBucketExist(t, mgr, "TEST"),
 					resource.TestCheckResourceAttr("jetstream_obj_bucket.test", "name", "TEST"),
+				),
+			},
+		},
+	})
+}
+
+const testObjPlacement = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_obj_bucket" "test" {
+  name              = "TEST"
+  description       = "%s"
+  placement_cluster = "C1"
+  placement_tags    = ["az:1"]
+}
+`
+
+func TestResourceObjPlacement(t *testing.T) {
+	servers := createJSCluster(t)
+
+	nc, err := nats.Connect(servers[0].ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy:             testObjBucketDoesNotExist(t, mgr, "TEST"),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(testObjPlacement, nc.ConnectedUrl(), "one"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("jetstream_obj_bucket.test", "placement_cluster", "C1"),
+					resource.TestCheckResourceAttr("jetstream_obj_bucket.test", "placement_tags.0", "az:1"),
+				),
+			},
+			{
+				Config: fmt.Sprintf(testObjPlacement, nc.ConnectedUrl(), "two"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("jetstream_obj_bucket.test", plancheck.ResourceActionUpdate),
+					},
+				},
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("jetstream_obj_bucket.test", "placement_cluster", "C1"),
+					resource.TestCheckResourceAttr("jetstream_obj_bucket.test", "placement_tags.0", "az:1"),
+					testStreamConfig(t, mgr, "OBJ_TEST", func(cfg api.StreamConfig) error {
+						if cfg.Placement == nil || cfg.Placement.Cluster != "C1" {
+							return fmt.Errorf("expected placement in cluster C1, got %+v", cfg.Placement)
+						}
+						return nil
+					}),
+				),
+			},
+			{
+				ResourceName:      "jetstream_obj_bucket.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+const testObjUnmanagedSettings = `
+provider "jetstream" {
+  servers = "%s"
+}
+
+resource "jetstream_obj_bucket" "test" {
+  name        = "TEST"
+  description = "%s"
+}
+`
+
+func TestResourceObjUpdateKeepsUnmanagedSettings(t *testing.T) {
+	srv := createJSServer(t)
+	defer srv.Shutdown()
+
+	nc, err := nats.Connect(srv.ClientURL())
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+	defer nc.Close()
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		t.Fatalf("could not connect: %s", err)
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV5ProviderFactories: testJsProviders,
+		CheckDestroy:             testObjBucketDoesNotExist(t, mgr, "TEST"),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(testObjUnmanagedSettings, nc.ConnectedUrl(), "one"),
+			},
+			{
+				PreConfig: func() {
+					updateStreamConfig(t, mgr, "OBJ_TEST", func(cfg *api.StreamConfig) {
+						if cfg.Metadata == nil {
+							cfg.Metadata = map[string]string{}
+						}
+						cfg.Metadata["foo"] = "bar"
+					})
+				},
+				Config: fmt.Sprintf(testObjUnmanagedSettings, nc.ConnectedUrl(), "two"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("jetstream_obj_bucket.test", plancheck.ResourceActionUpdate),
+					},
+				},
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("jetstream_obj_bucket.test", "description", "two"),
+					testStreamConfig(t, mgr, "OBJ_TEST", func(cfg api.StreamConfig) error {
+						if cfg.Metadata["foo"] != "bar" {
+							return fmt.Errorf("expected metadata foo=bar, got %v", cfg.Metadata)
+						}
+						return nil
+					}),
 				),
 			},
 		},
