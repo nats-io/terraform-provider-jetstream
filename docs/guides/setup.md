@@ -8,12 +8,14 @@ When using Terraform 0.13 or newer adding the `provider` and running `terraform 
 
 ## Credentials
 
-The provider supports NATS 2.0 credentials either in a file or as a Terraform Variable or Data, for local use you would set the credentials as in the examples later, but if you use something like Terraform Cloud or wish to store the credentials in a credential store you can use Terraform Variables:
+Pass NATS 2.0 credentials either through a credentials file or as a string with `credential_data`. Terraform marks `credential_data` as sensitive and redacts it from normal CLI output. To keep credentials out of plans and state, declare the variable as ephemeral (Terraform 1.10 or later). `sensitive = true` alone only redacts the value; it does not prevent Terraform from storing it:
 
 ```terraform
 variable "ngs_credential_data" {
-  type = string
+  type        = string
   description = "Text of the NATS credentials to use to manage JetStream"
+  sensitive   = true
+  ephemeral   = true
 }
 
 provider "jetstream" {

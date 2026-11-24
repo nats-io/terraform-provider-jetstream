@@ -269,6 +269,13 @@ func createJSCluster(t *testing.T) []*server.Server {
 	return nil
 }
 
+// TestProviderCredentialDataIsSensitive verifies Terraform redacts inline NATS credentials.
+func TestProviderCredentialDataIsSensitive(t *testing.T) {
+	if !Provider().Schema["credential_data"].Sensitive {
+		t.Fatal("provider field \"credential_data\" is not marked sensitive")
+	}
+}
+
 func TestProviderCredentialsConflict(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV5ProviderFactories: testJsProviders,
