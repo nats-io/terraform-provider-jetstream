@@ -61,7 +61,7 @@ Above the `ORDERS_ARCHIVE` stream is a mirror of `ORDERS`, valid options for spe
  * `duplicate_window` - (optional) The time window size for duplicate tracking, duration specified in seconds, fractions allowed. Ignored for mirrors (number)
  * `placement_cluster` - (optional) Place the stream in a specific cluster, influenced by placement_tags
  * `placement_tags` - (optional) Place the stream only on servers with these tags
- * `placement_preferred` - (optional) A preferred server name to move the stream leader to
+ * `placement_preferred` - (deprecated)
  * `source` - (optional) List of streams to source
  * `mirror` - (optional) Stream to mirror
  * `deny_delete` - (optional) Restricts the ability to delete messages from a stream via the API. Changing it from true to false replaces the stream (bool)

@@ -14,16 +14,20 @@
 package jetstream
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"testing"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
+	ntf "github.com/synadia-io/orbit.go/ntf-client"
 )
 
 const testStreamConfigBasic = `
@@ -324,260 +328,212 @@ resource "jetstream_stream" "sourced" {
 `
 
 func TestStreamFirstSeq(t *testing.T) {
-	srv := createJSServer(t)
-	defer srv.Shutdown()
-
-	nc, err := nats.Connect(srv.ClientURL())
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-	defer nc.Close()
-
-	mgr, err := jsm.New(nc)
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-
-	resource.Test(t, resource.TestCase{
-		ProtoV5ProviderFactories: testJsProviders,
-		CheckDestroy:             testStreamDoesNotExist(t, mgr, "first_seq"),
-		Steps: []resource.TestStep{
-			{
-				Config: fmt.Sprintf(testStreamFirstSeq, nc.ConnectedUrl()),
-				Check: resource.ComposeTestCheckFunc(
-					testStreamExist(t, mgr, "first_seq"),
-					testStreamHasFirstSeq(t, mgr, "first_seq", 100),
-					resource.TestCheckResourceAttr("jetstream_stream.first_seq", "first_seq", "100"),
-				),
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			CheckDestroy:             testStreamDoesNotExist(t, mgr, "first_seq"),
+			Steps: []resource.TestStep{
+				{
+					Config: fmt.Sprintf(testStreamFirstSeq, nc.ConnectedUrl()),
+					Check: resource.ComposeTestCheckFunc(
+						testStreamExist(t, mgr, "first_seq"),
+						testStreamHasFirstSeq(t, mgr, "first_seq", 100),
+						resource.TestCheckResourceAttr("jetstream_stream.first_seq", "first_seq", "100"),
+					),
+				},
 			},
-		},
+		})
 	})
 }
 
 func TestStreamPersistAndBatched(t *testing.T) {
-	srv := createJSServer(t)
-	defer srv.Shutdown()
-
-	nc, err := nats.Connect(srv.ClientURL())
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-	defer nc.Close()
-
-	mgr, err := jsm.New(nc)
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-
-	resource.Test(t, resource.TestCase{
-		ProtoV5ProviderFactories: testJsProviders,
-		CheckDestroy:             testStreamDoesNotExist(t, mgr, "persist_batched"),
-		Steps: []resource.TestStep{
-			{
-				Config: fmt.Sprintf(testStreamPersistAsyncBatched, nc.ConnectedUrl()),
-				Check: resource.ComposeTestCheckFunc(
-					testStreamExist(t, mgr, "persist_batched"),
-					testStreamHasPersistMode(t, mgr, "persist_batched", api.AsyncPersistMode),
-					testStreamAllowsBatched(t, mgr, "persist_batched", true),
-					resource.TestCheckResourceAttr("jetstream_stream.persist_batched", "persist_mode", "async"),
-					resource.TestCheckResourceAttr("jetstream_stream.persist_batched", "allow_batched", "true"),
-				),
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			CheckDestroy:             testStreamDoesNotExist(t, mgr, "persist_batched"),
+			Steps: []resource.TestStep{
+				{
+					Config: fmt.Sprintf(testStreamPersistAsyncBatched, nc.ConnectedUrl()),
+					Check: resource.ComposeTestCheckFunc(
+						testStreamExist(t, mgr, "persist_batched"),
+						testStreamHasPersistMode(t, mgr, "persist_batched", api.AsyncPersistMode),
+						testStreamAllowsBatched(t, mgr, "persist_batched", true),
+						resource.TestCheckResourceAttr("jetstream_stream.persist_batched", "persist_mode", "async"),
+						resource.TestCheckResourceAttr("jetstream_stream.persist_batched", "allow_batched", "true"),
+					),
+				},
 			},
-		},
+		})
 	})
 }
 
 func TestStreamSourceConsumer(t *testing.T) {
-	srv := createJSServer(t)
-	defer srv.Shutdown()
-
-	nc, err := nats.Connect(srv.ClientURL())
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-	defer nc.Close()
-
-	mgr, err := jsm.New(nc)
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-
-	resource.Test(t, resource.TestCase{
-		ProtoV5ProviderFactories: testJsProviders,
-		CheckDestroy: resource.ComposeTestCheckFunc(
-			testStreamDoesNotExist(t, mgr, "SRC"),
-			testStreamDoesNotExist(t, mgr, "SOURCED"),
-		),
-		Steps: []resource.TestStep{
-			{
-				Config: fmt.Sprintf(testStreamSourceConsumer, nc.ConnectedUrl()),
-				Check: resource.ComposeTestCheckFunc(
-					testStreamExist(t, mgr, "SRC"),
-					testStreamExist(t, mgr, "SOURCED"),
-					testStreamSourceHasConsumer(t, mgr, "SOURCED", "SRC", "src_push", "deliver.src_push"),
-					resource.TestCheckResourceAttr("jetstream_stream.sourced", "source.0.consumer.0.name", "src_push"),
-					resource.TestCheckResourceAttr("jetstream_stream.sourced", "source.0.consumer.0.deliver_subject", "deliver.src_push"),
-				),
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			CheckDestroy: resource.ComposeTestCheckFunc(
+				testStreamDoesNotExist(t, mgr, "SRC"),
+				testStreamDoesNotExist(t, mgr, "SOURCED"),
+			),
+			Steps: []resource.TestStep{
+				{
+					Config: fmt.Sprintf(testStreamSourceConsumer, nc.ConnectedUrl()),
+					Check: resource.ComposeTestCheckFunc(
+						testStreamExist(t, mgr, "SRC"),
+						testStreamExist(t, mgr, "SOURCED"),
+						testStreamSourceHasConsumer(t, mgr, "SOURCED", "SRC", "src_push", "deliver.src_push"),
+						resource.TestCheckResourceAttr("jetstream_stream.sourced", "source.0.consumer.0.name", "src_push"),
+						resource.TestCheckResourceAttr("jetstream_stream.sourced", "source.0.consumer.0.deliver_subject", "deliver.src_push"),
+					),
+				},
 			},
-		},
+		})
 	})
 }
 
 func TestResourceStream(t *testing.T) {
-	srv := createJSServer(t)
-	defer srv.Shutdown()
-
-	nc, err := nats.Connect(srv.ClientURL())
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-	defer nc.Close()
-
-	mgr, err := jsm.New(nc)
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-
-	resource.Test(t, resource.TestCase{
-		ProtoV5ProviderFactories: testJsProviders,
-		CheckDestroy: resource.ComposeTestCheckFunc(
-			testStreamDoesNotExist(t, mgr, "TEST"),
-			testStreamDoesNotExist(t, mgr, "OTHER"),
-			testStreamDoesNotExist(t, mgr, "OTHER1"),
-			testStreamDoesNotExist(t, mgr, "OTHER2")),
-		Steps: []resource.TestStep{
-			{
-				Config: fmt.Sprintf(testStreamConfigBasic, nc.ConnectedUrl()),
-				Check: resource.ComposeTestCheckFunc(
-					testStreamExist(t, mgr, "TEST"),
-					testStreamHasSubjects(t, mgr, "TEST", []string{"TEST.*"}),
-					testStreamHasMetadata(t, mgr, "TEST", map[string]string{"foo": "bar"}),
-					testStreamIsCompressed(t, mgr, "TEST"),
-					testStreamAllowsTTLs(t, mgr, "TEST", 24*time.Hour),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "max_msgs", "-1"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "description", "testing stream"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "deny_delete", "false"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "compression", "s2"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "allow_msg_ttl", "true"),
-				),
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			CheckDestroy: resource.ComposeTestCheckFunc(
+				testStreamDoesNotExist(t, mgr, "TEST"),
+				testStreamDoesNotExist(t, mgr, "OTHER"),
+				testStreamDoesNotExist(t, mgr, "OTHER1"),
+				testStreamDoesNotExist(t, mgr, "OTHER2")),
+			Steps: []resource.TestStep{
+				{
+					Config: fmt.Sprintf(testStreamConfigBasic, nc.ConnectedUrl()),
+					Check: resource.ComposeTestCheckFunc(
+						testStreamExist(t, mgr, "TEST"),
+						testStreamHasSubjects(t, mgr, "TEST", []string{"TEST.*"}),
+						testStreamHasMetadata(t, mgr, "TEST", map[string]string{"foo": "bar"}),
+						testStreamIsCompressed(t, mgr, "TEST"),
+						testStreamAllowsTTLs(t, mgr, "TEST", 24*time.Hour),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "max_msgs", "-1"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "description", "testing stream"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "deny_delete", "false"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "compression", "s2"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "allow_msg_ttl", "true"),
+					),
+				},
+				{
+					ResourceName:      "jetstream_stream.test",
+					ImportState:       true,
+					ImportStateVerify: true,
+				},
+				{
+					Config: fmt.Sprintf(testStreamConfigOtherSubjects, nc.ConnectedUrl()),
+					Check: resource.ComposeTestCheckFunc(
+						testStreamExist(t, mgr, "TEST"),
+						testStreamIsUnCompressed(t, mgr, "TEST"),
+						testStreamHasSubjects(t, mgr, "TEST", []string{"OTHER.*"}),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "max_msgs", "10"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "max_msgs_per_subject", "2"),
+					),
+				},
+				{
+					Config: fmt.Sprintf(testStreamConfigMirror, nc.ConnectedUrl()),
+					Check: resource.ComposeTestCheckFunc(
+						testStreamExist(t, mgr, "TEST"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.name", "OTHER"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.filter_subject", "js.in.>"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.start_seq", "11"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.external.0.api", "js.api.ext"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.external.0.deliver", "js.deliver.ext"),
+						testStreamIsMirrorOf(t, mgr, "TEST", "OTHER"),
+						testStreamHasSubjects(t, mgr, "TEST", []string{}),
+					),
+				},
+				{
+					Config: fmt.Sprintf(typeStreamConfigMirrorTransformed, nc.ConnectedUrl()),
+					Check: resource.ComposeTestCheckFunc(
+						testStreamExist(t, mgr, "MIRROR_TRANSFORM_TEST"),
+						resource.TestCheckResourceAttr("jetstream_stream.mirror_transform_test", "mirror.0.name", "OTHER"),
+						resource.TestCheckResourceAttr("jetstream_stream.mirror_transform_test", "mirror.0.start_seq", "11"),
+						resource.TestCheckResourceAttr("jetstream_stream.mirror_transform_test", "mirror.0.subject_transform.0.source", "js.in.OTHER.1.>"),
+						resource.TestCheckResourceAttr("jetstream_stream.mirror_transform_test", "mirror.0.subject_transform.0.destination", "1.>"),
+						resource.TestCheckResourceAttr("jetstream_stream.mirror_transform_test", "mirror.0.subject_transform.1.source", "js.in.OTHER.2.>"),
+						resource.TestCheckResourceAttr("jetstream_stream.mirror_transform_test", "mirror.0.subject_transform.1.destination", "2.>"),
+						testStreamIsMirrorOf(t, mgr, "MIRROR_TRANSFORM_TEST", "OTHER"),
+						testStreamIsMirrorTransformed(t, mgr, "MIRROR_TRANSFORM_TEST", api.SubjectTransformConfig{Source: "js.in.OTHER.1.>", Destination: "1.>"}, api.SubjectTransformConfig{Source: "js.in.OTHER.2.>", Destination: "2.>"}),
+						testStreamHasSubjects(t, mgr, "MIRROR_TRANSFORM_TEST", []string{}),
+					),
+				},
+				{
+					Config: fmt.Sprintf(typeStreamConfigSourcesTransformed, nc.ConnectedUrl()),
+					Check: resource.ComposeTestCheckFunc(
+						testStreamExist(t, mgr, "SOURCE_TRANSFORM_TEST"),
+						resource.TestCheckResourceAttr("jetstream_stream.source_transform_test", "source.0.name", "OTHER1"),
+						resource.TestCheckResourceAttr("jetstream_stream.source_transform_test", "source.0.subject_transform.0.source", "js.in.OTHER1.>"),
+						resource.TestCheckResourceAttr("jetstream_stream.source_transform_test", "source.0.subject_transform.0.destination", "1.>"),
+						resource.TestCheckResourceAttr("jetstream_stream.source_transform_test", "source.1.name", "OTHER2"),
+						resource.TestCheckResourceAttr("jetstream_stream.source_transform_test", "source.1.subject_transform.0.source", "js.in.OTHER2.>"),
+						resource.TestCheckResourceAttr("jetstream_stream.source_transform_test", "source.1.subject_transform.0.destination", "2.>"),
+						testStreamIsSourceOf(t, mgr, "SOURCE_TRANSFORM_TEST", []string{"OTHER1", "OTHER2"}),
+						testStreamIsSourceTransformed(t, mgr, "SOURCE_TRANSFORM_TEST", "OTHER1", api.SubjectTransformConfig{Source: "js.in.OTHER1.>", Destination: "1.>"}),
+						testStreamIsSourceTransformed(t, mgr, "SOURCE_TRANSFORM_TEST", "OTHER2", api.SubjectTransformConfig{Source: "js.in.OTHER2.>", Destination: "2.>"}),
+						testStreamHasSubjects(t, mgr, "SOURCE_TRANSFORM_TEST", []string{}),
+					),
+				},
+				{
+					Config: fmt.Sprintf(testStreamConfigSources, nc.ConnectedUrl()),
+					Check: resource.ComposeTestCheckFunc(
+						testStreamExist(t, mgr, "TEST"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "source.0.name", "OTHER1"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "source.1.name", "OTHER2"),
+						testStreamIsSourceOf(t, mgr, "TEST", []string{"OTHER1", "OTHER2"}),
+						testStreamHasSubjects(t, mgr, "TEST", []string{}),
+					),
+				},
+				{
+					Config: fmt.Sprintf(testStreamSubjectTransform, nc.ConnectedUrl()),
+					Check: resource.ComposeTestCheckFunc(
+						testStreamExist(t, mgr, "TEST"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "subject_transform.0.source", "TEST.>"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "subject_transform.0.destination", "1.>"),
+						testStreamHasSubjects(t, mgr, "TEST", []string{"TEST.*"}),
+						testStreamIsTransformed(t, mgr, "TEST", api.SubjectTransformConfig{Source: "TEST.>", Destination: "1.>"}),
+					),
+				},
+				{
+					Config:      fmt.Sprintf(pedanticMaxAge, nc.ConnectedUrl()),
+					ExpectError: regexp.MustCompile(`duplicates window can not be larger then max age \(10052\)`),
+				},
+				{
+					Config:      fmt.Sprintf(pedanticMirrorDirect, nc.ConnectedUrl()),
+					ExpectError: regexp.MustCompile(`origin stream has direct get set, mirror has it disabled \(10157\)`),
+				},
+				{
+					Config: fmt.Sprintf(subSecondDuplicateWindow, nc.ConnectedUrl()),
+					Check: resource.ComposeTestCheckFunc(
+						testStreamExist(t, mgr, "SUB_SECOND_DUPLICATE_WINDOW"),
+						testStreamHasDuplicateWindow(t, mgr, "SUB_SECOND_DUPLICATE_WINDOW", 100*time.Millisecond),
+						resource.TestCheckResourceAttr("jetstream_stream.sub_second_duplicate_window", "duplicate_window", "0.1"),
+					),
+				},
+				{
+					Config: fmt.Sprintf(allowMsgCounter, nc.ConnectedUrl()),
+					Check: resource.ComposeTestCheckFunc(
+						testStreamExist(t, mgr, "allow_msg_counter"),
+						resource.TestCheckResourceAttr("jetstream_stream.allow_msg_counter", "allow_msg_counter", "true"),
+					),
+				},
+				{
+					Config: fmt.Sprintf(allowAtomic, nc.ConnectedUrl()),
+					Check: resource.ComposeTestCheckFunc(
+						testStreamExist(t, mgr, "allow_atomic"),
+						resource.TestCheckResourceAttr("jetstream_stream.allow_atomic", "allow_atomic", "true"),
+					),
+				},
+				{
+					Config: fmt.Sprintf(allowMsgSchedules, nc.ConnectedUrl()),
+					Check: resource.ComposeTestCheckFunc(
+						testStreamExist(t, mgr, "allow_msg_schedules"),
+						resource.TestCheckResourceAttr("jetstream_stream.allow_msg_schedules", "allow_msg_schedules", "true"),
+					),
+				},
 			},
-			{
-				ResourceName:      "jetstream_stream.test",
-				ImportState:       true,
-				ImportStateVerify: true,
-			},
-			{
-				Config: fmt.Sprintf(testStreamConfigOtherSubjects, nc.ConnectedUrl()),
-				Check: resource.ComposeTestCheckFunc(
-					testStreamExist(t, mgr, "TEST"),
-					testStreamIsUnCompressed(t, mgr, "TEST"),
-					testStreamHasSubjects(t, mgr, "TEST", []string{"OTHER.*"}),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "max_msgs", "10"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "max_msgs_per_subject", "2"),
-				),
-			},
-			{
-				Config: fmt.Sprintf(testStreamConfigMirror, nc.ConnectedUrl()),
-				Check: resource.ComposeTestCheckFunc(
-					testStreamExist(t, mgr, "TEST"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.name", "OTHER"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.filter_subject", "js.in.>"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.start_seq", "11"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.external.0.api", "js.api.ext"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.external.0.deliver", "js.deliver.ext"),
-					testStreamIsMirrorOf(t, mgr, "TEST", "OTHER"),
-					testStreamHasSubjects(t, mgr, "TEST", []string{}),
-				),
-			},
-			{
-				Config: fmt.Sprintf(typeStreamConfigMirrorTransformed, nc.ConnectedUrl()),
-				Check: resource.ComposeTestCheckFunc(
-					testStreamExist(t, mgr, "MIRROR_TRANSFORM_TEST"),
-					resource.TestCheckResourceAttr("jetstream_stream.mirror_transform_test", "mirror.0.name", "OTHER"),
-					resource.TestCheckResourceAttr("jetstream_stream.mirror_transform_test", "mirror.0.start_seq", "11"),
-					resource.TestCheckResourceAttr("jetstream_stream.mirror_transform_test", "mirror.0.subject_transform.0.source", "js.in.OTHER.1.>"),
-					resource.TestCheckResourceAttr("jetstream_stream.mirror_transform_test", "mirror.0.subject_transform.0.destination", "1.>"),
-					resource.TestCheckResourceAttr("jetstream_stream.mirror_transform_test", "mirror.0.subject_transform.1.source", "js.in.OTHER.2.>"),
-					resource.TestCheckResourceAttr("jetstream_stream.mirror_transform_test", "mirror.0.subject_transform.1.destination", "2.>"),
-					testStreamIsMirrorOf(t, mgr, "MIRROR_TRANSFORM_TEST", "OTHER"),
-					testStreamIsMirrorTransformed(t, mgr, "MIRROR_TRANSFORM_TEST", api.SubjectTransformConfig{Source: "js.in.OTHER.1.>", Destination: "1.>"}),
-					testStreamHasSubjects(t, mgr, "MIRROR_TRANSFORM_TEST", []string{}),
-				),
-			},
-			{
-				Config: fmt.Sprintf(typeStreamConfigSourcesTransformed, nc.ConnectedUrl()),
-				Check: resource.ComposeTestCheckFunc(
-					testStreamExist(t, mgr, "SOURCE_TRANSFORM_TEST"),
-					resource.TestCheckResourceAttr("jetstream_stream.source_transform_test", "source.0.name", "OTHER1"),
-					resource.TestCheckResourceAttr("jetstream_stream.source_transform_test", "source.0.subject_transform.0.source", "js.in.OTHER1.>"),
-					resource.TestCheckResourceAttr("jetstream_stream.source_transform_test", "source.0.subject_transform.0.destination", "1.>"),
-					resource.TestCheckResourceAttr("jetstream_stream.source_transform_test", "source.1.name", "OTHER2"),
-					resource.TestCheckResourceAttr("jetstream_stream.source_transform_test", "source.1.subject_transform.0.source", "js.in.OTHER2.>"),
-					resource.TestCheckResourceAttr("jetstream_stream.source_transform_test", "source.1.subject_transform.0.destination", "2.>"),
-					testStreamIsSourceOf(t, mgr, "SOURCE_TRANSFORM_TEST", []string{"OTHER1", "OTHER2"}),
-					testStreamIsSourceTransformed(t, mgr, "SOURCE_TRANSFORM_TEST", "OTHER1", api.SubjectTransformConfig{Source: "js.in.OTHER1.>", Destination: "1.>"}),
-					testStreamIsSourceTransformed(t, mgr, "SOURCE_TRANSFORM_TEST", "OTHER2", api.SubjectTransformConfig{Source: "js.in.OTHER2.>", Destination: "2.>"}),
-					testStreamHasSubjects(t, mgr, "SOURCE_TRANSFORM_TEST", []string{}),
-				),
-			},
-			{
-				Config: fmt.Sprintf(testStreamConfigSources, nc.ConnectedUrl()),
-				Check: resource.ComposeTestCheckFunc(
-					testStreamExist(t, mgr, "TEST"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "source.0.name", "OTHER1"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "source.1.name", "OTHER2"),
-					testStreamIsSourceOf(t, mgr, "TEST", []string{"OTHER1", "OTHER2"}),
-					testStreamHasSubjects(t, mgr, "TEST", []string{}),
-				),
-			},
-			{
-				Config: fmt.Sprintf(testStreamSubjectTransform, nc.ConnectedUrl()),
-				Check: resource.ComposeTestCheckFunc(
-					testStreamExist(t, mgr, "TEST"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "subject_transform.0.source", "TEST.>"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "subject_transform.0.destination", "1.>"),
-					testStreamHasSubjects(t, mgr, "TEST", []string{"TEST.*"}),
-					testStreamIsTransformed(t, mgr, "TEST", api.SubjectTransformConfig{Source: "TEST.>", Destination: "1.>"}),
-				),
-			},
-			{
-				Config:      fmt.Sprintf(pedanticMaxAge, nc.ConnectedUrl()),
-				ExpectError: regexp.MustCompile(`duplicates window can not be larger then max age \(10052\)`),
-			},
-			{
-				Config:      fmt.Sprintf(pedanticMirrorDirect, nc.ConnectedUrl()),
-				ExpectError: regexp.MustCompile(`origin stream has direct get set, mirror has it disabled \(10157\)`),
-			},
-			{
-				Config: fmt.Sprintf(subSecondDuplicateWindow, nc.ConnectedUrl()),
-				Check: resource.ComposeTestCheckFunc(
-					testStreamExist(t, mgr, "SUB_SECOND_DUPLICATE_WINDOW"),
-					testStreamHasDuplicateWindow(t, mgr, "SUB_SECOND_DUPLICATE_WINDOW", 100*time.Millisecond),
-					resource.TestCheckResourceAttr("jetstream_stream.sub_second_duplicate_window", "duplicate_window", "0.1"),
-				),
-			},
-			{
-				Config: fmt.Sprintf(allowMsgCounter, nc.ConnectedUrl()),
-				Check: resource.ComposeTestCheckFunc(
-					testStreamExist(t, mgr, "allow_msg_counter"),
-					resource.TestCheckResourceAttr("jetstream_stream.allow_msg_counter", "allow_msg_counter", "true"),
-				),
-			},
-			{
-				Config: fmt.Sprintf(allowAtomic, nc.ConnectedUrl()),
-				Check: resource.ComposeTestCheckFunc(
-					testStreamExist(t, mgr, "allow_atomic"),
-					resource.TestCheckResourceAttr("jetstream_stream.allow_atomic", "allow_atomic", "true"),
-				),
-			},
-			{
-				Config: fmt.Sprintf(allowMsgSchedules, nc.ConnectedUrl()),
-				Check: resource.ComposeTestCheckFunc(
-					testStreamExist(t, mgr, "allow_msg_schedules"),
-					resource.TestCheckResourceAttr("jetstream_stream.allow_msg_schedules", "allow_msg_schedules", "true"),
-				),
-			},
-		},
+		})
 	})
 }
 
@@ -594,37 +550,25 @@ resource "jetstream_stream" "test" {
 `
 
 func TestStreamInactiveThreshold(t *testing.T) {
-	srv := createJSServer(t)
-	defer srv.Shutdown()
-
-	nc, err := nats.Connect(srv.ClientURL())
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-	defer nc.Close()
-
-	mgr, err := jsm.New(nc)
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-
-	resource.Test(t, resource.TestCase{
-		ProtoV5ProviderFactories: testJsProviders,
-		CheckDestroy:             testStreamDoesNotExist(t, mgr, "TEST"),
-		Steps: []resource.TestStep{
-			{
-				Config: fmt.Sprintf(testStreamInactiveThreshold, nc.ConnectedUrl()),
-				Check: resource.ComposeTestCheckFunc(
-					testStreamHasInactiveThreshold(t, mgr, "TEST", 300*time.Second),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "inactive_threshold", "300"),
-				),
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			CheckDestroy:             testStreamDoesNotExist(t, mgr, "TEST"),
+			Steps: []resource.TestStep{
+				{
+					Config: fmt.Sprintf(testStreamInactiveThreshold, nc.ConnectedUrl()),
+					Check: resource.ComposeTestCheckFunc(
+						testStreamHasInactiveThreshold(t, mgr, "TEST", 300*time.Second),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "inactive_threshold", "300"),
+					),
+				},
+				{
+					ResourceName:      "jetstream_stream.test",
+					ImportState:       true,
+					ImportStateVerify: true,
+				},
 			},
-			{
-				ResourceName:      "jetstream_stream.test",
-				ImportState:       true,
-				ImportStateVerify: true,
-			},
-		},
+		})
 	})
 }
 
@@ -657,40 +601,26 @@ func TestStreamMirrorDuplicateWindow(t *testing.T) {
 		{true, ""},
 		{false, "duplicate_window = 60"},
 	} {
-		clustered := tc.clustered
-		t.Run(fmt.Sprintf("clustered=%v,window_set=%v", clustered, tc.window != ""), func(t *testing.T) {
-			var url string
-			if clustered {
-				url = createJSCluster(t)[0].ClientURL()
-			} else {
-				srv := createJSServer(t)
-				defer srv.Shutdown()
-				url = srv.ClientURL()
+		t.Run(fmt.Sprintf("clustered=%v,window_set=%v", tc.clustered, tc.window != ""), func(t *testing.T) {
+			with := withJSServer
+			if tc.clustered {
+				with = withJSCluster
 			}
 
-			nc, err := nats.Connect(url)
-			if err != nil {
-				t.Fatalf("could not connect: %s", err)
-			}
-			defer nc.Close()
-
-			mgr, err := jsm.New(nc)
-			if err != nil {
-				t.Fatalf("could not connect: %s", err)
-			}
-
-			resource.Test(t, resource.TestCase{
-				ProtoV5ProviderFactories: testJsProviders,
-				CheckDestroy: resource.ComposeTestCheckFunc(
-					testStreamDoesNotExist(t, mgr, "TEST"),
-					testStreamDoesNotExist(t, mgr, "ORIGIN"),
-				),
-				Steps: []resource.TestStep{
-					{
-						Config: fmt.Sprintf(testStreamMirrorDuplicateWindow, nc.ConnectedUrl(), tc.window),
-						Check:  testStreamHasDuplicateWindow(t, mgr, "TEST", 0),
+			with(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+				resource.Test(t, resource.TestCase{
+					ProtoV5ProviderFactories: testJsProviders,
+					CheckDestroy: resource.ComposeTestCheckFunc(
+						testStreamDoesNotExist(t, mgr, "TEST"),
+						testStreamDoesNotExist(t, mgr, "ORIGIN"),
+					),
+					Steps: []resource.TestStep{
+						{
+							Config: fmt.Sprintf(testStreamMirrorDuplicateWindow, nc.ConnectedUrl(), tc.window),
+							Check:  testStreamHasDuplicateWindow(t, mgr, "TEST", 0),
+						},
 					},
-				},
+				})
 			})
 		})
 	}
@@ -711,67 +641,55 @@ resource "jetstream_stream" "test" {
 `
 
 func TestStreamImmutableSettingsForceReplace(t *testing.T) {
-	srv := createJSServer(t)
-	defer srv.Shutdown()
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		cfg := func(denyDelete, denyPurge bool, persist string) string {
+			return fmt.Sprintf(testStreamImmutable, nc.ConnectedUrl(), denyDelete, denyPurge, persist)
+		}
 
-	nc, err := nats.Connect(srv.ClientURL())
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-	defer nc.Close()
-
-	mgr, err := jsm.New(nc)
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-
-	cfg := func(denyDelete, denyPurge bool, persist string) string {
-		return fmt.Sprintf(testStreamImmutable, nc.ConnectedUrl(), denyDelete, denyPurge, persist)
-	}
-
-	resource.Test(t, resource.TestCase{
-		ProtoV5ProviderFactories: testJsProviders,
-		CheckDestroy:             testStreamDoesNotExist(t, mgr, "TEST"),
-		Steps: []resource.TestStep{
-			{
-				Config: cfg(false, false, "default"),
-			},
-			{
-				Config: cfg(true, true, "default"),
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("jetstream_stream.test", plancheck.ResourceActionUpdate),
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			CheckDestroy:             testStreamDoesNotExist(t, mgr, "TEST"),
+			Steps: []resource.TestStep{
+				{
+					Config: cfg(false, false, "default"),
+				},
+				{
+					Config: cfg(true, true, "default"),
+					ConfigPlanChecks: resource.ConfigPlanChecks{
+						PreApply: []plancheck.PlanCheck{
+							plancheck.ExpectResourceAction("jetstream_stream.test", plancheck.ResourceActionUpdate),
+						},
 					},
 				},
-			},
-			{
-				Config: cfg(false, true, "default"),
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("jetstream_stream.test", plancheck.ResourceActionReplace),
+				{
+					Config: cfg(false, true, "default"),
+					ConfigPlanChecks: resource.ConfigPlanChecks{
+						PreApply: []plancheck.PlanCheck{
+							plancheck.ExpectResourceAction("jetstream_stream.test", plancheck.ResourceActionReplace),
+						},
 					},
+					Check: resource.TestCheckResourceAttr("jetstream_stream.test", "deny_delete", "false"),
 				},
-				Check: resource.TestCheckResourceAttr("jetstream_stream.test", "deny_delete", "false"),
-			},
-			{
-				Config: cfg(false, false, "default"),
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("jetstream_stream.test", plancheck.ResourceActionReplace),
+				{
+					Config: cfg(false, false, "default"),
+					ConfigPlanChecks: resource.ConfigPlanChecks{
+						PreApply: []plancheck.PlanCheck{
+							plancheck.ExpectResourceAction("jetstream_stream.test", plancheck.ResourceActionReplace),
+						},
 					},
+					Check: resource.TestCheckResourceAttr("jetstream_stream.test", "deny_purge", "false"),
 				},
-				Check: resource.TestCheckResourceAttr("jetstream_stream.test", "deny_purge", "false"),
-			},
-			{
-				Config: cfg(false, false, "async"),
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("jetstream_stream.test", plancheck.ResourceActionReplace),
+				{
+					Config: cfg(false, false, "async"),
+					ConfigPlanChecks: resource.ConfigPlanChecks{
+						PreApply: []plancheck.PlanCheck{
+							plancheck.ExpectResourceAction("jetstream_stream.test", plancheck.ResourceActionReplace),
+						},
 					},
+					Check: testStreamHasPersistMode(t, mgr, "TEST", api.AsyncPersistMode),
 				},
-				Check: testStreamHasPersistMode(t, mgr, "TEST", api.AsyncPersistMode),
 			},
-		},
+		})
 	})
 }
 
@@ -815,23 +733,22 @@ resource "jetstream_stream" "test" {
 `
 
 func TestStreamSourceFilterAndTransformConflict(t *testing.T) {
-	srv := createJSServer(t)
-	defer srv.Shutdown()
-
-	resource.Test(t, resource.TestCase{
-		ProtoV5ProviderFactories: testJsProviders,
-		Steps: []resource.TestStep{
-			{
-				Config:      fmt.Sprintf(testStreamMirrorFilterAndTransform, srv.ClientURL()),
-				PlanOnly:    true,
-				ExpectError: regexp.MustCompile(`mirror.0: filter_subject and subject_transform cannot both be set`),
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			Steps: []resource.TestStep{
+				{
+					Config:      fmt.Sprintf(testStreamMirrorFilterAndTransform, nc.ConnectedUrl()),
+					PlanOnly:    true,
+					ExpectError: regexp.MustCompile(`mirror.0: filter_subject and subject_transform cannot both be set`),
+				},
+				{
+					Config:      fmt.Sprintf(testStreamSourceFilterAndTransform, nc.ConnectedUrl()),
+					PlanOnly:    true,
+					ExpectError: regexp.MustCompile(`source.1: filter_subject and subject_transform cannot both be set`),
+				},
 			},
-			{
-				Config:      fmt.Sprintf(testStreamSourceFilterAndTransform, srv.ClientURL()),
-				PlanOnly:    true,
-				ExpectError: regexp.MustCompile(`source.1: filter_subject and subject_transform cannot both be set`),
-			},
-		},
+		})
 	})
 }
 
@@ -854,38 +771,26 @@ resource "jetstream_stream" "test" {
 `
 
 func TestStreamDenyUnknownValueUpdatesInPlace(t *testing.T) {
-	srv := createJSServer(t)
-	defer srv.Shutdown()
-
-	nc, err := nats.Connect(srv.ClientURL())
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-	defer nc.Close()
-
-	mgr, err := jsm.New(nc)
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-
-	resource.Test(t, resource.TestCase{
-		ProtoV5ProviderFactories: testJsProviders,
-		CheckDestroy:             testStreamDoesNotExist(t, mgr, "TEST"),
-		Steps: []resource.TestStep{
-			{
-				Config: fmt.Sprintf(testStreamDenyFromUnknown, nc.ConnectedUrl(), "1"),
-				Check:  resource.TestCheckResourceAttr("jetstream_stream.test", "deny_delete", "true"),
-			},
-			{
-				Config: fmt.Sprintf(testStreamDenyFromUnknown, nc.ConnectedUrl(), "2"),
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("jetstream_stream.test", plancheck.ResourceActionUpdate),
-					},
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			CheckDestroy:             testStreamDoesNotExist(t, mgr, "TEST"),
+			Steps: []resource.TestStep{
+				{
+					Config: fmt.Sprintf(testStreamDenyFromUnknown, nc.ConnectedUrl(), "1"),
+					Check:  resource.TestCheckResourceAttr("jetstream_stream.test", "deny_delete", "true"),
 				},
-				Check: resource.TestCheckResourceAttr("jetstream_stream.test", "deny_delete", "true"),
+				{
+					Config: fmt.Sprintf(testStreamDenyFromUnknown, nc.ConnectedUrl(), "2"),
+					ConfigPlanChecks: resource.ConfigPlanChecks{
+						PreApply: []plancheck.PlanCheck{
+							plancheck.ExpectResourceAction("jetstream_stream.test", plancheck.ResourceActionUpdate),
+						},
+					},
+					Check: resource.TestCheckResourceAttr("jetstream_stream.test", "deny_delete", "true"),
+				},
 			},
-		},
+		})
 	})
 }
 
@@ -924,66 +829,55 @@ resource "jetstream_stream" "test" {
 `
 
 func TestStreamAllAttributes(t *testing.T) {
-	servers := createJSCluster(t)
-
-	nc, err := nats.Connect(servers[0].ClientURL())
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-	defer nc.Close()
-
-	mgr, err := jsm.New(nc)
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-
-	resource.Test(t, resource.TestCase{
-		ProtoV5ProviderFactories: testJsProviders,
-		CheckDestroy: resource.ComposeTestCheckFunc(
-			testStreamDoesNotExist(t, mgr, "TEST"),
-			testStreamDoesNotExist(t, mgr, "ORIGIN"),
-		),
-		Steps: []resource.TestStep{
-			{
-				Config: fmt.Sprintf(testStreamAllAttributes, nc.ConnectedUrl(), "new", true, 1048576, 1024, "republished.>", true),
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("jetstream_stream.test", "retention", "interest"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "discard", "new"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "discard_new_per_subject", "true"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "max_bytes", "1048576"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "max_consumers", "10"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "max_msg_size", "1024"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "ack", "false"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "placement_cluster", "C1"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "placement_tags.0", "az:1"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "republish_source", ">"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "republish_destination", "republished.>"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "republish_headers_only", "true"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "source.0.start_time", "2025-01-01T00:00:00Z"),
-				),
-			},
-			{
-				Config: fmt.Sprintf(testStreamAllAttributes, nc.ConnectedUrl(), "old", false, 2097152, 2048, "other.>", false),
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("jetstream_stream.test", plancheck.ResourceActionUpdate),
-					},
+	withJSCluster(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			CheckDestroy: resource.ComposeTestCheckFunc(
+				testStreamDoesNotExist(t, mgr, "TEST"),
+				testStreamDoesNotExist(t, mgr, "ORIGIN"),
+			),
+			Steps: []resource.TestStep{
+				{
+					Config: fmt.Sprintf(testStreamAllAttributes, nc.ConnectedUrl(), "new", true, 1048576, 1024, "republished.>", true),
+					Check: resource.ComposeTestCheckFunc(
+						resource.TestCheckResourceAttr("jetstream_stream.test", "retention", "interest"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "discard", "new"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "discard_new_per_subject", "true"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "max_bytes", "1048576"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "max_consumers", "10"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "max_msg_size", "1024"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "ack", "false"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "placement_cluster", "C1"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "placement_tags.0", "az:1"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "republish_source", ">"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "republish_destination", "republished.>"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "republish_headers_only", "true"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "source.0.start_time", "2025-01-01T00:00:00Z"),
+					),
 				},
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("jetstream_stream.test", "discard", "old"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "discard_new_per_subject", "false"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "max_bytes", "2097152"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "max_msg_size", "2048"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "republish_destination", "other.>"),
-					resource.TestCheckResourceAttr("jetstream_stream.test", "republish_headers_only", "false"),
-				),
+				{
+					Config: fmt.Sprintf(testStreamAllAttributes, nc.ConnectedUrl(), "old", false, 2097152, 2048, "other.>", false),
+					ConfigPlanChecks: resource.ConfigPlanChecks{
+						PreApply: []plancheck.PlanCheck{
+							plancheck.ExpectResourceAction("jetstream_stream.test", plancheck.ResourceActionUpdate),
+						},
+					},
+					Check: resource.ComposeTestCheckFunc(
+						resource.TestCheckResourceAttr("jetstream_stream.test", "discard", "old"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "discard_new_per_subject", "false"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "max_bytes", "2097152"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "max_msg_size", "2048"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "republish_destination", "other.>"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "republish_headers_only", "false"),
+					),
+				},
+				{
+					ResourceName:      "jetstream_stream.test",
+					ImportState:       true,
+					ImportStateVerify: true,
+				},
 			},
-			{
-				ResourceName:      "jetstream_stream.test",
-				ImportState:       true,
-				ImportStateVerify: true,
-			},
-		},
+		})
 	})
 }
 
@@ -1004,66 +898,434 @@ resource "jetstream_stream" "test" {
 `
 
 func TestStreamForceNewAttributes(t *testing.T) {
-	srv := createJSServer(t)
-	defer srv.Shutdown()
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		const base = "  name = \"TEST\"\n  subjects = [\"TEST.*\"]\n"
 
-	nc, err := nats.Connect(srv.ClientURL())
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-	defer nc.Close()
+		cases := []struct {
+			attr   string
+			before string
+			after  string
+			want   string
+		}{
+			{"name", base, "  name = \"TEST2\"\n  subjects = [\"TEST.*\"]\n", "TEST2"},
+			{"storage", base + "  storage = \"file\"", base + "  storage = \"memory\"", "memory"},
+			{"mirror.0.name", base, "  name = \"TEST\"\n  mirror {\n    name = jetstream_stream.origin.name\n  }", "ORIGIN_A"},
+			{"allow_msg_ttl", base + "  allow_msg_ttl = false", base + "  allow_msg_ttl = true", "true"},
+			{"allow_msg_counter", base + "  allow_msg_counter = false", base + "  allow_msg_counter = true", "true"},
+			{"allow_msg_schedules", base + "  allow_rollup_hdrs = true\n  allow_msg_schedules = false", base + "  allow_rollup_hdrs = true\n  allow_msg_schedules = true", "true"},
+			{"first_seq", base + "  first_seq = 5", base + "  first_seq = 10", "10"},
+		}
 
-	mgr, err := jsm.New(nc)
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-
-	const base = "  name = \"TEST\"\n  subjects = [\"TEST.*\"]\n"
-
-	cases := []struct {
-		attr   string
-		before string
-		after  string
-		want   string
-	}{
-		{"name", base, "  name = \"TEST2\"\n  subjects = [\"TEST.*\"]\n", "TEST2"},
-		{"storage", base + "  storage = \"file\"", base + "  storage = \"memory\"", "memory"},
-		{"mirror.0.name", base, "  name = \"TEST\"\n  mirror {\n    name = jetstream_stream.origin.name\n  }", "ORIGIN_A"},
-		{"allow_msg_ttl", base + "  allow_msg_ttl = false", base + "  allow_msg_ttl = true", "true"},
-		{"allow_msg_counter", base + "  allow_msg_counter = false", base + "  allow_msg_counter = true", "true"},
-		{"allow_msg_schedules", base + "  allow_rollup_hdrs = true\n  allow_msg_schedules = false", base + "  allow_rollup_hdrs = true\n  allow_msg_schedules = true", "true"},
-		{"first_seq", base + "  first_seq = 5", base + "  first_seq = 10", "10"},
-	}
-
-	for _, c := range cases {
-		t.Run(c.attr, func(t *testing.T) {
-			resource.Test(t, resource.TestCase{
-				ProtoV5ProviderFactories: testJsProviders,
-				CheckDestroy: resource.ComposeTestCheckFunc(
-					testStreamDoesNotExist(t, mgr, "TEST"),
-					testStreamDoesNotExist(t, mgr, "TEST2"),
-					testStreamDoesNotExist(t, mgr, "ORIGIN_A"),
-				),
-				Steps: []resource.TestStep{
-					{
-						Config: fmt.Sprintf(testStreamForceNew, nc.ConnectedUrl(), c.before),
-					},
-					{
-						Config: fmt.Sprintf(testStreamForceNew, nc.ConnectedUrl(), c.after),
-						ConfigPlanChecks: resource.ConfigPlanChecks{
-							PreApply: []plancheck.PlanCheck{
-								plancheck.ExpectResourceAction("jetstream_stream.test", plancheck.ResourceActionReplace),
-							},
+		for _, c := range cases {
+			t.Run(c.attr, func(t *testing.T) {
+				resource.Test(t, resource.TestCase{
+					ProtoV5ProviderFactories: testJsProviders,
+					CheckDestroy: resource.ComposeTestCheckFunc(
+						testStreamDoesNotExist(t, mgr, "TEST"),
+						testStreamDoesNotExist(t, mgr, "TEST2"),
+						testStreamDoesNotExist(t, mgr, "ORIGIN_A"),
+					),
+					Steps: []resource.TestStep{
+						{
+							Config: fmt.Sprintf(testStreamForceNew, nc.ConnectedUrl(), c.before),
 						},
-						Check: resource.TestCheckResourceAttr("jetstream_stream.test", c.attr, c.want),
+						{
+							Config: fmt.Sprintf(testStreamForceNew, nc.ConnectedUrl(), c.after),
+							ConfigPlanChecks: resource.ConfigPlanChecks{
+								PreApply: []plancheck.PlanCheck{
+									plancheck.ExpectResourceAction("jetstream_stream.test", plancheck.ResourceActionReplace),
+								},
+							},
+							Check: resource.TestCheckResourceAttr("jetstream_stream.test", c.attr, c.want),
+						},
+						{
+							ResourceName:      "jetstream_stream.test",
+							ImportState:       true,
+							ImportStateVerify: true,
+						},
 					},
-					{
-						ResourceName:      "jetstream_stream.test",
-						ImportState:       true,
-						ImportStateVerify: true,
-					},
+				})
+			})
+		}
+	})
+}
+
+const testStreamEmptyExternal = `
+provider "jetstream" {
+	servers = "%s"
+}
+resource "jetstream_stream" "src" {
+  name     = "SRC"
+  subjects = ["src.>"]
+}
+resource "jetstream_stream" "sourced" {
+  name = "SOURCED"
+  source {
+    name = jetstream_stream.src.name
+    external {}
+  }
+}
+`
+
+func TestStreamEmptyExternal(t *testing.T) {
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			Steps: []resource.TestStep{
+				{
+					Config:      fmt.Sprintf(testStreamEmptyExternal, nc.ConnectedUrl()),
+					PlanOnly:    true,
+					ExpectError: regexp.MustCompile(`source.0: external requires api or deliver`),
 				},
+			},
+		})
+	})
+}
+
+const testStreamWith = `
+provider "jetstream" {
+	servers = "%s"
+}
+resource "jetstream_stream" "test" {
+  name = "TEST"
+  %s
+}
+`
+
+func TestStreamConfigErrors(t *testing.T) {
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		for _, tc := range []struct {
+			name   string
+			config string
+			err    string
+		}{
+			{"no subjects", ``, `subjects are required for streams without mirrors or sources`},
+			{"mirror and source", "mirror { name = \"A\" }\n  source { name = \"B\" }", `only one of sources and mirror may be specified`},
+			{"counter with interest retention", "subjects = [\"TEST.>\"]\n  allow_msg_counter = true\n  retention = \"interest\"", `allow_msg_counter requires retention to be 'limits'`},
+			{"counter with discard new", "subjects = [\"TEST.>\"]\n  allow_msg_counter = true\n  discard = \"new\"", `allow_msg_counter may not be used with 'discard = new'`},
+			{"counter with ttl", "subjects = [\"TEST.>\"]\n  allow_msg_counter = true\n  allow_msg_ttl = true", `allow_msg_counter may not be used with per-message TTL`},
+			{"counter on mirror", "mirror { name = \"A\" }\n  allow_msg_counter = true", `allow_msg_counter may not be enabled on mirrored streams`},
+			{"schedules without rollup", "subjects = [\"TEST.>\"]\n  allow_msg_schedules = true", `allow_msg_schedules requires allow_rollup_hdrs to be true`},
+			{"invalid compression", "subjects = [\"TEST.>\"]\n  compression = \"zip\"", `Invalid compression type`},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				resource.Test(t, resource.TestCase{
+					ProtoV5ProviderFactories: testJsProviders,
+					Steps: []resource.TestStep{
+						{
+							Config:      fmt.Sprintf(testStreamWith, nc.ConnectedUrl(), tc.config),
+							ExpectError: regexp.MustCompile(tc.err),
+						},
+					},
+				})
+			})
+		}
+	})
+}
+
+const testStreamInvalidName = `
+provider "jetstream" {
+	servers = "%s"
+}
+resource "jetstream_stream" "test" {
+  name     = "TE.ST"
+  subjects = ["TEST.>"]
+}
+`
+
+func TestStreamInvalidName(t *testing.T) {
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			Steps: []resource.TestStep{
+				{
+					Config:      fmt.Sprintf(testStreamInvalidName, nc.ConnectedUrl()),
+					ExpectError: regexp.MustCompile(`name: Does not match pattern`),
+				},
+			},
+		})
+	})
+}
+
+func TestStreamUpdateConfigError(t *testing.T) {
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			Steps: []resource.TestStep{
+				{
+					Config: fmt.Sprintf(testStreamWith, nc.ConnectedUrl(), `subjects = ["TEST.>"]`),
+				},
+				{
+					Config:      fmt.Sprintf(testStreamWith, nc.ConnectedUrl(), ``),
+					ExpectError: regexp.MustCompile(`subjects are required for streams without mirrors or sources`),
+				},
+			},
+		})
+	})
+}
+
+func TestStreamWorkQueue(t *testing.T) {
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			CheckDestroy:             testStreamDoesNotExist(t, mgr, "TEST"),
+			Steps: []resource.TestStep{
+				{
+					Config: fmt.Sprintf(testStreamWith, nc.ConnectedUrl(), "subjects = [\"TEST.>\"]\n  retention = \"workqueue\""),
+					Check: resource.ComposeTestCheckFunc(
+						testStreamConfig(t, mgr, "TEST", func(cfg api.StreamConfig) error {
+							if cfg.Retention != api.WorkQueuePolicy {
+								return fmt.Errorf("expected workqueue retention, got %v", cfg.Retention)
+							}
+							return nil
+						}),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "retention", "workqueue"),
+					),
+				},
+			},
+		})
+	})
+}
+
+const testStreamSourceConsumerCounter = `
+provider "jetstream" {
+	servers = "%s"
+}
+resource "jetstream_stream" "test" {
+  name              = "TEST"
+  allow_msg_counter = true
+  source {
+    name = "OTHER"
+    consumer {
+      name            = "C1"
+      deliver_subject = "deliver.C1"
+    }
+  }
+}
+`
+
+func TestStreamUnsupportedAPILevel(t *testing.T) {
+	withJSProxy(t, func(proxy *jsProxy, nc *nats.Conn, mgr *jsm.Manager) {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			CheckDestroy:             testStreamDoesNotExist(t, mgr, "TEST"),
+			Steps: []resource.TestStep{
+				{
+					PreConfig:   func() { proxy.setAPILevel(1) },
+					Config:      fmt.Sprintf(testStreamWith, proxy.url, "subjects = [\"TEST.>\"]\n  allow_msg_counter = true"),
+					ExpectError: regexp.MustCompile(`unsupported api level: 1. Requires NATS API level 2 or newer`),
+				},
+				{
+					PreConfig:   func() { proxy.setAPILevel(3) },
+					Config:      fmt.Sprintf(testStreamSourceConsumerCounter, proxy.url),
+					ExpectError: regexp.MustCompile(`unsupported api level: 3. Requires NATS API level 4 or newer`),
+				},
+				{
+					PreConfig:   func() { proxy.setAPILevel(3) },
+					Config:      fmt.Sprintf(testStreamWith, proxy.url, "subjects = [\"TEST.>\"]\n  allow_batched = true"),
+					ExpectError: regexp.MustCompile(`unsupported api level: 3. Requires NATS API level 4 or newer`),
+				},
+				{
+					PreConfig:   func() { proxy.setAPILevel(3) },
+					Config:      fmt.Sprintf(testStreamWith, proxy.url, "mirror {\n    name = \"OTHER\"\n    consumer {\n      name            = \"C1\"\n      deliver_subject = \"deliver.C1\"\n    }\n  }"),
+					ExpectError: regexp.MustCompile(`unsupported api level: 3. Requires NATS API level 4 or newer`),
+				},
+				{
+					PreConfig: proxy.clear,
+					Config:    fmt.Sprintf(testStreamWith, proxy.url, `subjects = ["TEST.>"]`),
+				},
+				{
+					PreConfig:   func() { proxy.setAPILevel(1) },
+					Config:      fmt.Sprintf(testStreamWith, proxy.url, "subjects = [\"TEST.>\"]\n  allow_atomic = true"),
+					ExpectError: regexp.MustCompile(`unsupported api level: 1. Requires NATS API level 2 or newer`),
+				},
+				{
+					PreConfig: proxy.clear,
+					Config:    fmt.Sprintf(testStreamWith, proxy.url, `subjects = ["TEST.>"]`),
+				},
+			},
+		})
+	})
+}
+
+func TestStreamExternalDeletion(t *testing.T) {
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			CheckDestroy:             testStreamDoesNotExist(t, mgr, "TEST"),
+			Steps: []resource.TestStep{
+				{
+					Config: fmt.Sprintf(testStreamWith, nc.ConnectedUrl(), `subjects = ["TEST.>"]`),
+					Check:  testStreamExist(t, mgr, "TEST"),
+				},
+				{
+					PreConfig: func() { removeStream(t, mgr, "TEST") },
+					Config:    fmt.Sprintf(testStreamWith, nc.ConnectedUrl(), `subjects = ["TEST.>"]`),
+					Check:     testStreamExist(t, mgr, "TEST"),
+				},
+			},
+		})
+	})
+}
+
+func TestStreamImportInvalidID(t *testing.T) {
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			Steps: []resource.TestStep{
+				{
+					Config:        fmt.Sprintf(testStreamWith, nc.ConnectedUrl(), `subjects = ["TEST.>"]`),
+					ResourceName:  "jetstream_stream.test",
+					ImportState:   true,
+					ImportStateId: "TEST",
+					ExpectError:   regexp.MustCompile(`invalid stream id "TEST"`),
+				},
+			},
+		})
+	})
+}
+
+var testStreamAttrs = map[string]any{"name": "TEST", "subjects": []any{"TEST.>"}}
+
+func ensureStream(t *testing.T, mgr *jsm.Manager) {
+	t.Helper()
+
+	removeStream(t, mgr, "TEST")
+	_, err := mgr.NewStreamFromDefault("TEST", api.StreamConfig{Name: "TEST", Subjects: []string{"TEST.>"}, Storage: api.FileStorage})
+	checkErr(t, err, "could not create stream: %v", err)
+}
+
+func removeStream(t *testing.T, mgr *jsm.Manager, name string) {
+	t.Helper()
+
+	known, err := mgr.IsKnownStream(name)
+	checkErr(t, err, "could not look up stream %s: %v", name, err)
+	if !known {
+		return
+	}
+
+	str, err := mgr.LoadStream(name)
+	checkErr(t, err, "could not load stream %s: %v", name, err)
+	err = str.Delete()
+	checkErr(t, err, "could not delete stream %s: %v", name, err)
+}
+
+func TestStreamRequestFailures(t *testing.T) {
+	withJSProxy(t, func(proxy *jsProxy, nc *nats.Conn, mgr *jsm.Manager) {
+		exists := func(t *testing.T) { ensureStream(t, mgr) }
+		absent := func(t *testing.T) { removeStream(t, mgr, "TEST") }
+
+		t.Run("create", func(t *testing.T) {
+			testEachRequestFails(t, proxy, absent, func(t *testing.T) diag.Diagnostics {
+				_, diags := callResource(t, proxy, resourceStreamCreate, resourceStream(), "", testStreamAttrs)
+				return diags
 			})
 		})
-	}
+
+		for _, tc := range []struct {
+			name string
+			fn   func(context.Context, *schema.ResourceData, any) diag.Diagnostics
+		}{
+			{"read", resourceStreamRead},
+			{"update", resourceStreamUpdate},
+			{"delete", resourceStreamDelete},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				testEachRequestFails(t, proxy, exists, func(t *testing.T) diag.Diagnostics {
+					_, diags := callResource(t, proxy, tc.fn, resourceStream(), "JETSTREAM_STREAM_TEST", testStreamAttrs)
+					return diags
+				})
+			})
+		}
+	})
+}
+
+func TestStreamMissingOnServer(t *testing.T) {
+	withJSProxy(t, func(proxy *jsProxy, nc *nats.Conn, mgr *jsm.Manager) {
+		for _, tc := range []struct {
+			name string
+			fn   func(context.Context, *schema.ResourceData, any) diag.Diagnostics
+		}{
+			{"update", resourceStreamUpdate},
+			{"delete", resourceStreamDelete},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				removeStream(t, mgr, "TEST")
+
+				d, diags := callResource(t, proxy, tc.fn, resourceStream(), "JETSTREAM_STREAM_TEST", testStreamAttrs)
+				if diags.HasError() {
+					t.Fatalf("unexpected error: %v", diags)
+				}
+				if d.Id() != "" {
+					t.Fatalf("expected the id to be cleared, got %q", d.Id())
+				}
+			})
+		}
+	})
+}
+
+func TestStreamPlacementPreferredRejected(t *testing.T) {
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			Steps: []resource.TestStep{
+				{
+					Config:      fmt.Sprintf(testStreamWith, nc.ConnectedUrl(), "subjects = [\"TEST.>\"]\n  placement_preferred = \"n1\""),
+					PlanOnly:    true,
+					ExpectError: regexp.MustCompile(`placement_preferred is not supported`),
+				},
+				{
+					Config: fmt.Sprintf(testStreamWith, nc.ConnectedUrl(), "subjects = [\"TEST.>\"]\n  placement_preferred = \"\""),
+				},
+			},
+		})
+	})
+}
+
+const testStreamMirrorStartSeq = `
+provider "jetstream" {
+	servers = "%s"
+}
+resource "jetstream_stream" "origin" {
+  name     = "ORIGIN"
+  subjects = ["origin.>"]
+}
+resource "jetstream_stream" "test" {
+  name          = "TEST"
+  mirror_direct = true
+  mirror {
+    name      = jetstream_stream.origin.name
+    start_seq = %d
+  }
+}
+`
+
+func TestStreamMirrorChangeReplaces(t *testing.T) {
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			CheckDestroy: resource.ComposeTestCheckFunc(
+				testStreamDoesNotExist(t, mgr, "TEST"),
+				testStreamDoesNotExist(t, mgr, "ORIGIN"),
+			),
+			Steps: []resource.TestStep{
+				{
+					Config: fmt.Sprintf(testStreamMirrorStartSeq, nc.ConnectedUrl(), 1),
+					Check:  testStreamIsMirrorOf(t, mgr, "TEST", "ORIGIN"),
+				},
+				{
+					Config: fmt.Sprintf(testStreamMirrorStartSeq, nc.ConnectedUrl(), 2),
+					ConfigPlanChecks: resource.ConfigPlanChecks{
+						PreApply: []plancheck.PlanCheck{
+							plancheck.ExpectResourceAction("jetstream_stream.test", plancheck.ResourceActionDestroyBeforeCreate),
+						},
+					},
+					Check: resource.ComposeTestCheckFunc(
+						testStreamIsMirrorOf(t, mgr, "TEST", "ORIGIN"),
+						resource.TestCheckResourceAttr("jetstream_stream.test", "mirror.0.start_seq", "2"),
+					),
+				},
+			},
+		})
+	})
 }

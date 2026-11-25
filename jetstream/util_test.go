@@ -15,6 +15,7 @@ package jetstream
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -204,16 +205,8 @@ func testStreamIsMirrorTransformed(t *testing.T, mgr *jsm.Manager, stream string
 
 		mirror := str.Mirror()
 
-		for i, trans := range transforms {
-			if len(mirror.SubjectTransforms) == 0 || len(mirror.SubjectTransforms) < i {
-				return fmt.Errorf("transform %v does not match %v", mirror.SubjectTransforms, trans)
-			}
-			if mirror.SubjectTransforms[i].Source != trans.Source {
-				return fmt.Errorf("transform %v does not match %v", mirror.SubjectTransforms[i], trans)
-			}
-			if mirror.SubjectTransforms[i].Destination != trans.Destination {
-				return fmt.Errorf("transform %v does not match %v", mirror.SubjectTransforms[i], trans)
-			}
+		if !slices.Equal(mirror.SubjectTransforms, transforms) {
+			return fmt.Errorf("transforms %v do not match %v", mirror.SubjectTransforms, transforms)
 		}
 
 		return nil
@@ -244,16 +237,8 @@ func testStreamIsSourceTransformed(t *testing.T, mgr *jsm.Manager, stream string
 			return fmt.Errorf("source not found")
 		}
 
-		for i, trans := range transforms {
-			if len(source.SubjectTransforms) == 0 || len(source.SubjectTransforms) < i {
-				return fmt.Errorf("transform %v does not match %v", source.SubjectTransforms, trans)
-			}
-			if source.SubjectTransforms[i].Source != trans.Source {
-				return fmt.Errorf("transform %v does not match %v", source.SubjectTransforms[i], trans)
-			}
-			if source.SubjectTransforms[i].Destination != trans.Destination {
-				return fmt.Errorf("transform %v does not match %v", source.SubjectTransforms[i], trans)
-			}
+		if !slices.Equal(source.SubjectTransforms, transforms) {
+			return fmt.Errorf("transforms %v do not match %v", source.SubjectTransforms, transforms)
 		}
 
 		return nil
@@ -376,7 +361,7 @@ func testStreamExist(t *testing.T, mgr *jsm.Manager, stream string) resource.Tes
 
 func testStreamDoesNotExist(t *testing.T, mgr *jsm.Manager, stream string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		err := testStreamExist(t, mgr, stream)
+		err := testStreamExist(t, mgr, stream)(s)
 		if err == nil {
 			return fmt.Errorf("expected stream %q to not exist", stream)
 		}
@@ -402,7 +387,7 @@ func testConsumerExist(t *testing.T, mgr *jsm.Manager, stream string, consumer s
 
 func testConsumerDoesNotExist(t *testing.T, mgr *jsm.Manager, stream string, consumer string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		err := testConsumerExist(t, mgr, stream, consumer)
+		err := testConsumerExist(t, mgr, stream, consumer)(s)
 		if err == nil {
 			return fmt.Errorf("expected consumer %q > %q to not exist", stream, consumer)
 		}

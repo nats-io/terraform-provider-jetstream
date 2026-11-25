@@ -15,17 +15,20 @@ package jetstream
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"regexp"
 	"testing"
-	"time"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
-	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	ntf "github.com/synadia-io/orbit.go/ntf-client"
 )
 
 const testKV_basic = `
@@ -45,119 +48,59 @@ resource "jetstream_kv_bucket" "test" {
 `
 
 func TestResourceKV(t *testing.T) {
-	srv := createJSServer(t)
-	defer srv.Shutdown()
-
-	nc, err := nats.Connect(srv.ClientURL())
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-	defer nc.Close()
-
-	mgr, err := jsm.New(nc)
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-
-	resource.Test(t, resource.TestCase{
-		ProtoV5ProviderFactories: testJsProviders,
-		CheckDestroy:             testBucketDoesNotExist(t, mgr, "TEST"),
-		Steps: []resource.TestStep{
-			{
-				Config: fmt.Sprintf(testKV_basic, nc.ConnectedUrl()),
-				Check: resource.ComposeTestCheckFunc(
-					testBucketExist(t, mgr, "TEST"),
-					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "name", "TEST"),
-					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "ttl", "60"),
-					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "storage", "memory"),
-					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "history", "10"),
-					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "max_value_size", "1024"),
-					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "max_bucket_size", "10240"),
-					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "limit_marker_ttl", "45"),
-				),
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			CheckDestroy:             testStreamDoesNotExist(t, mgr, "KV_TEST"),
+			Steps: []resource.TestStep{
+				{
+					Config: fmt.Sprintf(testKV_basic, nc.ConnectedUrl()),
+					Check: resource.ComposeTestCheckFunc(
+						testStreamExist(t, mgr, "KV_TEST"),
+						resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "name", "TEST"),
+						resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "ttl", "60"),
+						resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "storage", "memory"),
+						resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "history", "10"),
+						resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "max_value_size", "1024"),
+						resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "max_bucket_size", "10240"),
+						resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "limit_marker_ttl", "45"),
+					),
+				},
+				{
+					ResourceName:      "jetstream_kv_bucket.test",
+					ImportState:       true,
+					ImportStateVerify: true,
+				},
 			},
-			{
-				ResourceName:      "jetstream_kv_bucket.test",
-				ImportState:       true,
-				ImportStateVerify: true,
-			},
-		},
+		})
 	})
 }
 
-func testBucketDoesNotExist(t *testing.T, mgr *jsm.Manager, bucket string) resource.TestCheckFunc {
-	return func(s *terraform.State) error {
-		err := testBucketExist(t, mgr, bucket)
-		if err == nil {
-			return fmt.Errorf("expected bucket %q to not exist", bucket)
-		}
-
-		return nil
-	}
-}
-
-func testBucketExist(t *testing.T, mgr *jsm.Manager, bucket string) resource.TestCheckFunc {
-	return func(s *terraform.State) error {
-		known, err := mgr.IsKnownStream("KV_" + bucket)
-		if err != nil {
-			return err
-		}
-
-		if !known {
-			return fmt.Errorf("bucket %s does not exist", bucket)
-		}
-
-		return nil
-	}
-}
-
 func TestResourceKVExternalDeletion(t *testing.T) {
-	srv := createJSServer(t)
-	defer srv.Shutdown()
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		js := newJS(t, nc)
 
-	nc, err := nats.Connect(srv.ClientURL())
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-	defer nc.Close()
-
-	mgr, err := jsm.New(nc)
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-
-	js, err := jetstream.New(nc)
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	resource.Test(t, resource.TestCase{
-		ProtoV5ProviderFactories: testJsProviders,
-		CheckDestroy:             testBucketDoesNotExist(t, mgr, "TEST"),
-		Steps: []resource.TestStep{
-			{
-				Config: fmt.Sprintf(testKV_basic, nc.ConnectedUrl()),
-				Check: resource.ComposeTestCheckFunc(
-					testBucketExist(t, mgr, "TEST"),
-					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "name", "TEST"),
-				),
-			},
-			{
-				Config: fmt.Sprintf(testKV_basic, nc.ConnectedUrl()),
-				PreConfig: func() {
-					err := js.DeleteKeyValue(ctx, "TEST")
-					if err != nil {
-						t.Fatalf("failed to externally delete bucket: %s", err)
-					}
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			CheckDestroy:             testStreamDoesNotExist(t, mgr, "KV_TEST"),
+			Steps: []resource.TestStep{
+				{
+					Config: fmt.Sprintf(testKV_basic, nc.ConnectedUrl()),
+					Check: resource.ComposeTestCheckFunc(
+						testStreamExist(t, mgr, "KV_TEST"),
+						resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "name", "TEST"),
+					),
 				},
-				Check: resource.ComposeTestCheckFunc(
-					testBucketExist(t, mgr, "TEST"),
-					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "name", "TEST"),
-				),
+				{
+					Config:    fmt.Sprintf(testKV_basic, nc.ConnectedUrl()),
+					PreConfig: func() { removeKV(t, js) },
+					Check: resource.ComposeTestCheckFunc(
+						testStreamExist(t, mgr, "KV_TEST"),
+						resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "name", "TEST"),
+					),
+				},
 			},
-		},
+		})
 	})
 }
 
@@ -173,38 +116,27 @@ resource "jetstream_kv_bucket" "test" {
 `
 
 func TestResourceKVReplicasUpdate(t *testing.T) {
-	servers := createJSCluster(t)
-
-	nc, err := nats.Connect(servers[0].ClientURL())
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-	defer nc.Close()
-
-	mgr, err := jsm.New(nc)
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-
-	resource.Test(t, resource.TestCase{
-		ProtoV5ProviderFactories: testJsProviders,
-		CheckDestroy:             testBucketDoesNotExist(t, mgr, "TEST"),
-		Steps: []resource.TestStep{
-			{
-				Config: fmt.Sprintf(testKVReplicas, nc.ConnectedUrl(), 3),
-				Check: resource.ComposeTestCheckFunc(
-					testStreamHasReplicas(t, mgr, "KV_TEST", 3),
-					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "replicas", "3"),
-				),
+	withJSCluster(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			CheckDestroy:             testStreamDoesNotExist(t, mgr, "KV_TEST"),
+			Steps: []resource.TestStep{
+				{
+					Config: fmt.Sprintf(testKVReplicas, nc.ConnectedUrl(), 3),
+					Check: resource.ComposeTestCheckFunc(
+						testStreamHasReplicas(t, mgr, "KV_TEST", 3),
+						resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "replicas", "3"),
+					),
+				},
+				{
+					Config: fmt.Sprintf(testKVReplicas, nc.ConnectedUrl(), 1),
+					Check: resource.ComposeTestCheckFunc(
+						testStreamHasReplicas(t, mgr, "KV_TEST", 1),
+						resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "replicas", "1"),
+					),
+				},
 			},
-			{
-				Config: fmt.Sprintf(testKVReplicas, nc.ConnectedUrl(), 1),
-				Check: resource.ComposeTestCheckFunc(
-					testStreamHasReplicas(t, mgr, "KV_TEST", 1),
-					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "replicas", "1"),
-				),
-			},
-		},
+		})
 	})
 }
 
@@ -222,54 +154,43 @@ resource "jetstream_kv_bucket" "test" {
 `
 
 func TestResourceKVPlacement(t *testing.T) {
-	servers := createJSCluster(t)
-
-	nc, err := nats.Connect(servers[0].ClientURL())
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-	defer nc.Close()
-
-	mgr, err := jsm.New(nc)
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-
-	resource.Test(t, resource.TestCase{
-		ProtoV5ProviderFactories: testJsProviders,
-		CheckDestroy:             testBucketDoesNotExist(t, mgr, "TEST"),
-		Steps: []resource.TestStep{
-			{
-				Config: fmt.Sprintf(testKVPlacement, nc.ConnectedUrl(), "one"),
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "placement_cluster", "C1"),
-					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "placement_tags.0", "az:1"),
-				),
-			},
-			{
-				Config: fmt.Sprintf(testKVPlacement, nc.ConnectedUrl(), "two"),
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("jetstream_kv_bucket.test", plancheck.ResourceActionUpdate),
-					},
+	withJSCluster(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			CheckDestroy:             testStreamDoesNotExist(t, mgr, "KV_TEST"),
+			Steps: []resource.TestStep{
+				{
+					Config: fmt.Sprintf(testKVPlacement, nc.ConnectedUrl(), "one"),
+					Check: resource.ComposeTestCheckFunc(
+						resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "placement_cluster", "C1"),
+						resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "placement_tags.0", "az:1"),
+					),
 				},
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "placement_cluster", "C1"),
-					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "placement_tags.0", "az:1"),
-					testStreamConfig(t, mgr, "KV_TEST", func(cfg api.StreamConfig) error {
-						if cfg.Placement == nil || cfg.Placement.Cluster != "C1" {
-							return fmt.Errorf("expected placement in cluster C1, got %+v", cfg.Placement)
-						}
-						return nil
-					}),
-				),
+				{
+					Config: fmt.Sprintf(testKVPlacement, nc.ConnectedUrl(), "two"),
+					ConfigPlanChecks: resource.ConfigPlanChecks{
+						PreApply: []plancheck.PlanCheck{
+							plancheck.ExpectResourceAction("jetstream_kv_bucket.test", plancheck.ResourceActionUpdate),
+						},
+					},
+					Check: resource.ComposeTestCheckFunc(
+						resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "placement_cluster", "C1"),
+						resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "placement_tags.0", "az:1"),
+						testStreamConfig(t, mgr, "KV_TEST", func(cfg api.StreamConfig) error {
+							if cfg.Placement == nil || cfg.Placement.Cluster != "C1" {
+								return fmt.Errorf("expected placement in cluster C1, got %+v", cfg.Placement)
+							}
+							return nil
+						}),
+					),
+				},
+				{
+					ResourceName:      "jetstream_kv_bucket.test",
+					ImportState:       true,
+					ImportStateVerify: true,
+				},
 			},
-			{
-				ResourceName:      "jetstream_kv_bucket.test",
-				ImportState:       true,
-				ImportStateVerify: true,
-			},
-		},
+		})
 	})
 }
 
@@ -289,63 +210,144 @@ resource "jetstream_kv_bucket" "test" {
 `
 
 func TestResourceKVUpdateKeepsUnmanagedSettings(t *testing.T) {
-	srv := createJSServer(t)
-	defer srv.Shutdown()
-
-	nc, err := nats.Connect(srv.ClientURL())
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-	defer nc.Close()
-
-	mgr, err := jsm.New(nc)
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-
-	resource.Test(t, resource.TestCase{
-		ProtoV5ProviderFactories: testJsProviders,
-		CheckDestroy: resource.ComposeTestCheckFunc(
-			testBucketDoesNotExist(t, mgr, "TEST"),
-			testBucketDoesNotExist(t, mgr, "ORIGIN"),
-		),
-		Steps: []resource.TestStep{
-			{
-				Config: fmt.Sprintf(testKVUnmanagedSettings, nc.ConnectedUrl(), 5),
-			},
-			{
-				PreConfig: func() {
-					updateStreamConfig(t, mgr, "KV_TEST", func(cfg *api.StreamConfig) {
-						cfg.RePublish = &api.RePublish{Source: "$KV.TEST.>", Destination: "rp.TEST.>"}
-						cfg.Compression = api.S2Compression
-						cfg.Sources = []*api.StreamSource{{
-							Name:              "KV_ORIGIN",
-							SubjectTransforms: []api.SubjectTransformConfig{{Source: "$KV.ORIGIN.>", Destination: "$KV.TEST.>"}},
-						}}
-					})
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			CheckDestroy: resource.ComposeTestCheckFunc(
+				testStreamDoesNotExist(t, mgr, "KV_TEST"),
+				testStreamDoesNotExist(t, mgr, "KV_ORIGIN"),
+			),
+			Steps: []resource.TestStep{
+				{
+					Config: fmt.Sprintf(testKVUnmanagedSettings, nc.ConnectedUrl(), 5),
 				},
-				Config: fmt.Sprintf(testKVUnmanagedSettings, nc.ConnectedUrl(), 10),
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("jetstream_kv_bucket.test", plancheck.ResourceActionUpdate),
+				{
+					PreConfig: func() {
+						updateStreamConfig(t, mgr, "KV_TEST", func(cfg *api.StreamConfig) {
+							cfg.RePublish = &api.RePublish{Source: "$KV.TEST.>", Destination: "rp.TEST.>"}
+							cfg.Compression = api.S2Compression
+							cfg.Sources = []*api.StreamSource{{
+								Name:              "KV_ORIGIN",
+								SubjectTransforms: []api.SubjectTransformConfig{{Source: "$KV.ORIGIN.>", Destination: "$KV.TEST.>"}},
+							}}
+						})
 					},
+					Config: fmt.Sprintf(testKVUnmanagedSettings, nc.ConnectedUrl(), 10),
+					ConfigPlanChecks: resource.ConfigPlanChecks{
+						PreApply: []plancheck.PlanCheck{
+							plancheck.ExpectResourceAction("jetstream_kv_bucket.test", plancheck.ResourceActionUpdate),
+						},
+					},
+					Check: resource.ComposeTestCheckFunc(
+						resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "history", "10"),
+						testStreamConfig(t, mgr, "KV_TEST", func(cfg api.StreamConfig) error {
+							if cfg.RePublish == nil || cfg.RePublish.Destination != "rp.TEST.>" {
+								return fmt.Errorf("expected republish to rp.TEST.>, got %+v", cfg.RePublish)
+							}
+							if cfg.Compression != api.S2Compression {
+								return fmt.Errorf("expected s2 compression, got %v", cfg.Compression)
+							}
+							if len(cfg.Sources) != 1 || cfg.Sources[0].Name != "KV_ORIGIN" {
+								return fmt.Errorf("expected source KV_ORIGIN, got %+v", cfg.Sources)
+							}
+							return nil
+						}),
+					),
 				},
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("jetstream_kv_bucket.test", "history", "10"),
-					testStreamConfig(t, mgr, "KV_TEST", func(cfg api.StreamConfig) error {
-						if cfg.RePublish == nil || cfg.RePublish.Destination != "rp.TEST.>" {
-							return fmt.Errorf("expected republish to rp.TEST.>, got %+v", cfg.RePublish)
-						}
-						if cfg.Compression != api.S2Compression {
-							return fmt.Errorf("expected s2 compression, got %v", cfg.Compression)
-						}
-						if len(cfg.Sources) != 1 || cfg.Sources[0].Name != "KV_ORIGIN" {
-							return fmt.Errorf("expected source KV_ORIGIN, got %+v", cfg.Sources)
-						}
-						return nil
-					}),
-				),
 			},
-		},
+		})
+	})
+}
+
+func TestResourceKVAlreadyExists(t *testing.T) {
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		js := newJS(t, nc)
+
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			Steps: []resource.TestStep{
+				{
+					PreConfig:   func() { ensureKV(t, js) },
+					Config:      fmt.Sprintf(testKV_basic, nc.ConnectedUrl()),
+					ExpectError: regexp.MustCompile(`bucket TEST already exist`),
+				},
+			},
+		})
+	})
+}
+
+func TestResourceKVImportInvalidID(t *testing.T) {
+	withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, _ *ntf.Instance) {
+		resource.Test(t, resource.TestCase{
+			ProtoV5ProviderFactories: testJsProviders,
+			Steps: []resource.TestStep{
+				{
+					Config:        fmt.Sprintf(testKV_basic, nc.ConnectedUrl()),
+					ResourceName:  "jetstream_kv_bucket.test",
+					ImportState:   true,
+					ImportStateId: "TEST",
+					ExpectError:   regexp.MustCompile(`invalid kv bucket id "TEST"`),
+				},
+			},
+		})
+	})
+}
+
+var testKVAttrs = map[string]any{"name": "TEST"}
+
+func ensureKV(t *testing.T, js jetstream.JetStream) jetstream.KeyValue {
+	t.Helper()
+
+	removeKV(t, js)
+	kv, err := js.CreateKeyValue(context.Background(), jetstream.KeyValueConfig{Bucket: "TEST"})
+	checkErr(t, err, "could not create bucket: %v", err)
+
+	return kv
+}
+
+func removeKV(t *testing.T, js jetstream.JetStream) {
+	t.Helper()
+
+	err := js.DeleteKeyValue(context.Background(), "TEST")
+	if err != nil && !errors.Is(err, jetstream.ErrBucketNotFound) {
+		t.Fatalf("could not delete bucket: %v", err)
+	}
+}
+
+func TestResourceKVRequestFailures(t *testing.T) {
+	withJSProxy(t, func(proxy *jsProxy, nc *nats.Conn, mgr *jsm.Manager) {
+		js := newJS(t, nc)
+
+		t.Run("create", func(t *testing.T) {
+			testEachRequestFails(t, proxy, func(t *testing.T) { removeKV(t, js) }, func(t *testing.T) diag.Diagnostics {
+				_, diags := callResource(t, proxy, resourceKVBucketCreate, resourceKVBucket(), "", testKVAttrs)
+				return diags
+			})
+		})
+
+		for _, tc := range []struct {
+			name string
+			fn   func(context.Context, *schema.ResourceData, any) diag.Diagnostics
+		}{
+			{"read", resourceKVBucketRead},
+			{"update", resourceKVBucketUpdate},
+			{"delete", resourceKVBucketDelete},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				testEachRequestFails(t, proxy, func(t *testing.T) { ensureKV(t, js) }, func(t *testing.T) diag.Diagnostics {
+					_, diags := callResource(t, proxy, tc.fn, resourceKVBucket(), "JETSTREAM_KV_TEST", testKVAttrs)
+					return diags
+				})
+			})
+		}
+	})
+}
+
+func TestResourceKVDeleteMissing(t *testing.T) {
+	withJSProxy(t, func(proxy *jsProxy, nc *nats.Conn, mgr *jsm.Manager) {
+		_, diags := callResource(t, proxy, resourceKVBucketDelete, resourceKVBucket(), "JETSTREAM_KV_TEST", testKVAttrs)
+		if diags.HasError() {
+			t.Fatalf("unexpected error: %v", diags)
+		}
 	})
 }

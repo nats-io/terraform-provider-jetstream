@@ -449,16 +449,11 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 
 	metadata, ok := d.GetOk("metadata")
 	if ok {
-		mt, ok := metadata.(map[string]any)
-		if ok {
-			meta := map[string]string{}
-			for k, v := range mt {
-				meta[k] = v.(string)
-			}
-			cfg.Metadata = jsm.FilterServerMetadata(meta)
-		} else {
-			return api.ConsumerConfig{}, requiredApiLevel, fmt.Errorf("invalid metadata")
+		meta := map[string]string{}
+		for k, v := range metadata.(map[string]any) {
+			meta[k] = v.(string)
 		}
+		cfg.Metadata = jsm.FilterServerMetadata(meta)
 	}
 
 	priorityPolicy := d.Get("priority_policy").(string)
@@ -496,20 +491,12 @@ func consumerConfigFromResourceData(d *schema.ResourceData) (cfg api.ConsumerCon
 }
 
 func resourceConsumerUpdate(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
-	stream_id := d.Get("stream_id").(string)
-	if stream_id == "" {
-		return diag.Errorf("cannot determine stream name for update")
-	}
-
-	stream, err := parseStreamID(stream_id)
+	stream, err := parseStreamID(d.Get("stream_id").(string))
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
 	durable := d.Get("durable_name").(string)
-	if durable == "" {
-		return diag.Errorf("cannot determine durable name for update")
-	}
 
 	nc, mgr, err := m.(func() (*nats.Conn, *jsm.Manager, error))()
 	if err != nil {
@@ -626,8 +613,13 @@ func resourceConsumerRead(ctx context.Context, d *schema.ResourceData, m any) di
 	d.Set("delivery_subject", cons.DeliverySubject())
 	d.Set("ack_wait", cons.AckWait().Seconds())
 	d.Set("max_delivery", cons.MaxDeliver())
-	d.Set("filter_subject", cons.FilterSubject())
-	d.Set("filter_subjects", cons.FilterSubjects())
+	if fs, ok := d.Get("filter_subjects").([]any); ok && len(fs) > 0 && cons.FilterSubject() != "" && len(cons.FilterSubjects()) == 0 {
+		d.Set("filter_subject", "")
+		d.Set("filter_subjects", []string{cons.FilterSubject()})
+	} else {
+		d.Set("filter_subject", cons.FilterSubject())
+		d.Set("filter_subjects", cons.FilterSubjects())
+	}
 	d.Set("stream_sequence", 0)
 	d.Set("start_time", "")
 	d.Set("ratelimit", cons.RateLimit())
