@@ -127,23 +127,23 @@ func validateInboxPrefix() schema.SchemaValidateDiagFunc {
 	}
 }
 
+func validatePlacementPreferred(i any, _ cty.Path) diag.Diagnostics {
+	if i.(string) == "" {
+		return nil
+	}
+
+	return diag.Errorf("placement_preferred is not supported: NATS only accepts a preferred server in a leader step down request, use `nats stream cluster step-down --preferred %s`", i.(string))
+}
+
 func validatePersistMode() schema.SchemaValidateDiagFunc {
 	return validation.ToDiagFunc(validation.StringInSlice([]string{"", "default", "async"}, false))
 }
 
 func streamSourceFromResourceData(d any) ([]*api.StreamSource, error) {
-	ss := d.([]any)
-	if len(ss) == 0 {
-		return nil, fmt.Errorf("no data received")
-	}
-
 	var res []*api.StreamSource
 
-	for _, sd := range ss {
-		s, ok := sd.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("invalid hashmap received")
-		}
+	for _, sd := range d.([]any) {
+		s := sd.(map[string]any)
 
 		source := &api.StreamSource{
 			Name:          s["name"].(string),
@@ -255,12 +255,6 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 			placement.Tags = tags
 		}
 	}
-	if pref, ok := d.GetOk("placement_preferred"); ok {
-		if placement == nil {
-			placement = &api.Placement{}
-		}
-		placement.Preferred = pref.(string)
-	}
 
 	stream := api.StreamConfig{
 		Name:                   d.Get("name").(string),
@@ -294,11 +288,11 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		stream.PersistMode = api.DefaultPersistMode
 	case "async":
 		stream.PersistMode = api.AsyncPersistMode
-		requiredAPILevel = 2
+		requiredAPILevel = max(requiredAPILevel, 2)
 	}
 
-	if stream.AllowBatchPublish && requiredAPILevel < 3 {
-		requiredAPILevel = 3
+	if stream.AllowBatchPublish {
+		requiredAPILevel = max(requiredAPILevel, 4)
 	}
 
 	repubSrc := d.Get("republish_source").(string)
@@ -334,9 +328,6 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		if err != nil {
 			return api.StreamConfig{}, requiredAPILevel, err
 		}
-		if len(sources) != 1 {
-			return api.StreamConfig{}, requiredAPILevel, fmt.Errorf("expected exactly one mirror source")
-		}
 		stream.Mirror = sources[0]
 		stream.Duplicates = 0
 		mirrorDirect, ok := d.GetOk("mirror_direct")
@@ -358,13 +349,13 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 		if len(stream.Sources) > 0 {
 			return api.StreamConfig{}, requiredAPILevel, fmt.Errorf("only one of sources and mirror may be specified")
 		}
-		if stream.Mirror.Consumer != nil && requiredAPILevel < 4 {
-			requiredAPILevel = 4
+		if stream.Mirror.Consumer != nil {
+			requiredAPILevel = max(requiredAPILevel, 4)
 		}
 	}
 	for _, src := range stream.Sources {
-		if src.Consumer != nil && requiredAPILevel < 4 {
-			requiredAPILevel = 4
+		if src.Consumer != nil {
+			requiredAPILevel = max(requiredAPILevel, 4)
 		}
 	}
 
@@ -374,16 +365,11 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 
 	m, ok := d.GetOk("metadata")
 	if ok {
-		mt, ok := m.(map[string]any)
-		if ok {
-			meta := map[string]string{}
-			for k, v := range mt {
-				meta[k] = v.(string)
-			}
-			stream.Metadata = jsm.FilterServerMetadata(meta)
-		} else {
-			return api.StreamConfig{}, requiredAPILevel, fmt.Errorf("invalid metadata")
+		meta := map[string]string{}
+		for k, v := range m.(map[string]any) {
+			meta[k] = v.(string)
 		}
+		stream.Metadata = jsm.FilterServerMetadata(meta)
 	}
 
 	max_ack_pending, ok := d.GetOk("max_ack_pending")
@@ -399,7 +385,7 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 	stream.AllowMsgCounter = d.Get("allow_msg_counter").(bool)
 
 	if stream.AllowMsgCounter {
-		requiredAPILevel = 2
+		requiredAPILevel = max(requiredAPILevel, 2)
 		if stream.Retention != api.LimitsPolicy {
 			return api.StreamConfig{}, requiredAPILevel, fmt.Errorf("allow_msg_counter requires retention to be 'limits'")
 		}
@@ -416,12 +402,12 @@ func streamConfigFromResourceData(d *schema.ResourceData) (cfg api.StreamConfig,
 
 	stream.AllowAtomicPublish = d.Get("allow_atomic").(bool)
 	if stream.AllowAtomicPublish {
-		requiredAPILevel = 2
+		requiredAPILevel = max(requiredAPILevel, 2)
 	}
 
 	stream.AllowMsgSchedules = d.Get("allow_msg_schedules").(bool)
 	if stream.AllowMsgSchedules {
-		requiredAPILevel = 2
+		requiredAPILevel = max(requiredAPILevel, 2)
 		if !stream.RollupAllowed {
 			return api.StreamConfig{}, requiredAPILevel, fmt.Errorf("allow_msg_schedules requires allow_rollup_hdrs to be true")
 		}
@@ -684,15 +670,18 @@ func connectMgr(_ context.Context, d *schema.ResourceData) (any, diag.Diagnostic
 
 		mgr, err := jsm.New(nc, jsm.WithAPIValidation(new(SchemaValidator)), jsm.WithPedanticRequests())
 		if err != nil {
+			nc.Close()
 			return nil, nil, err
 		}
 
 		apiLevel, err := mgr.MetaApiLevel(true)
 		if err != nil {
+			nc.Close()
 			return nil, nil, err
 		}
 
 		if apiLevel < 1 {
+			nc.Close()
 			return nil, nil, fmt.Errorf("unsupported api level: %d. Requires NATS Server 2.11 or newer", apiLevel)
 		}
 

@@ -22,7 +22,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
-	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
@@ -179,7 +178,7 @@ func resourceKVBucketCreate(ctx context.Context, d *schema.ResourceData, m any) 
 		}
 	}
 
-	js.CreateKeyValue(opCtx, jetstream.KeyValueConfig{
+	_, err = js.CreateKeyValue(opCtx, jetstream.KeyValueConfig{
 		Bucket:         name,
 		Description:    descrption,
 		MaxValueSize:   int32(maxV),
@@ -191,6 +190,9 @@ func resourceKVBucketCreate(ctx context.Context, d *schema.ResourceData, m any) 
 		Placement:      placement,
 		LimitMarkerTTL: time.Duration(limit_marker_ttl) * time.Second,
 	})
+	if err != nil {
+		return diag.Errorf("failed to create KV bucket: %s", err)
+	}
 
 	d.SetId(fmt.Sprintf("JETSTREAM_KV_%s", name))
 
@@ -361,7 +363,7 @@ func resourceKVBucketDelete(ctx context.Context, d *schema.ResourceData, m any) 
 	defer cancel()
 
 	err = js.DeleteKeyValue(ctx, name)
-	if err == nats.ErrStreamNotFound {
+	if errors.Is(err, jetstream.ErrBucketNotFound) {
 		return nil
 	} else if err != nil {
 		return diag.FromErr(err)

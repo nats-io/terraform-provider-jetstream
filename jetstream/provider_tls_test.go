@@ -15,20 +15,22 @@ package jetstream
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
+	ntf "github.com/synadia-io/orbit.go/ntf-client"
+	"github.com/synadia-io/orbit.go/ntf/api"
 )
 
-const testTLSConfig_file_data = `
+const testTLSConfig = `
 provider "jetstream" {
   servers = "%s"
   tls {
-	  ca_file_data = <<EOT
 %s
-	  EOT
   }
 }
 
@@ -38,215 +40,51 @@ resource "jetstream_stream" "test" {
 }
 `
 
-const testTLSConfig_file = `
-provider "jetstream" {
-  servers = "%s"
-  tls {
-	  ca_file = "%s"
-  }
+func TestProviderWithTLS(t *testing.T) {
+	heredoc := func(key string, pem string) string {
+		return fmt.Sprintf("%s = <<EOT\n%s\nEOT\n", key, pem)
+	}
+
+	for _, tc := range []struct {
+		name string
+		mode ntf.TLSOpt
+		tls  func(t *testing.T, certs *api.TLSMaterial) string
+	}{
+		{"ca_file_data", ntf.TLSServerOnly(), func(t *testing.T, certs *api.TLSMaterial) string {
+			return heredoc("ca_file_data", certs.CAPEM)
+		}},
+		{"ca_file", ntf.TLSServerOnly(), func(t *testing.T, certs *api.TLSMaterial) string {
+			return fmt.Sprintf("ca_file = %q", writePEM(t, certs.CAPEM))
+		}},
+		{"client_file_data", ntf.TLSMutual(), func(t *testing.T, certs *api.TLSMaterial) string {
+			return heredoc("ca_file_data", certs.CAPEM) + heredoc("cert_file_data", certs.ClientCertPEM) + heredoc("key_file_data", certs.ClientKeyPEM)
+		}},
+		{"client_file", ntf.TLSMutual(), func(t *testing.T, certs *api.TLSMaterial) string {
+			return fmt.Sprintf("ca_file = %q\ncert_file = %q\nkey_file = %q", writePEM(t, certs.CAPEM), writePEM(t, certs.ClientCertPEM), writePEM(t, certs.ClientKeyPEM))
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			withJSServer(t, func(t *testing.T, nc *nats.Conn, mgr *jsm.Manager, inst *ntf.Instance) {
+				resource.Test(t, resource.TestCase{
+					ProtoV5ProviderFactories: testJsProviders,
+					Steps: []resource.TestStep{
+						{
+							Config: fmt.Sprintf(testTLSConfig, nc.ConnectedUrl(), tc.tls(t, inst.TLS)),
+							Check:  testStreamExist(t, mgr, "TEST"),
+						},
+					},
+				})
+			}, ntf.WithGeneratedTLS(tc.mode))
+		})
+	}
 }
 
-resource "jetstream_stream" "test" {
-  name     = "TEST"
-  subjects = ["TEST.*"]
-}
-`
+func writePEM(t *testing.T, contents string) string {
+	t.Helper()
 
-const testClientTLSConfig_file_data = `
-provider "jetstream" {
-  servers = "%s"
-  tls {
-    ca_file_data = <<EOT
-%s
-    EOT
-    cert_file_data = <<EOT
-%s
-    EOT
-    key_file_data = <<EOT
-%s
-    EOT
-  }
-}
+	path := filepath.Join(t.TempDir(), "file.pem")
+	err := os.WriteFile(path, []byte(contents), 0600)
+	checkErr(t, err, "could not write PEM file: %v", err)
 
-resource "jetstream_stream" "test" {
-  name     = "TEST"
-  subjects = ["TEST.*"]
-}
-`
-
-const testClientTLSConfig_file = `
-provider "jetstream" {
-  servers = "%s"
-  tls {
-    ca_file = "%s"
-    cert_file = "%s"
-    key_file = "%s"
-  }
-}
-
-resource "jetstream_stream" "test" {
-  name     = "TEST"
-  subjects = ["TEST.*"]
-}
-`
-
-func TestProviderWithTLSFromData(t *testing.T) {
-	srv := createJSTLSServer(t, false)
-	defer srv.Shutdown()
-
-	caFile, cleanup, err := newTempPEMFile(caPEM)
-
-	if err != nil {
-		t.Fatalf("failed to create temp CA PEM: %s", err)
-	}
-	defer cleanup()
-
-	nc, err := nats.Connect(srv.ClientURL(), nats.RootCAs(caFile))
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-	defer nc.Close()
-
-	mgr, err := jsm.New(nc)
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-
-	resource.Test(t, resource.TestCase{
-		ProtoV5ProviderFactories: testJsProviders,
-		Steps: []resource.TestStep{
-			{
-				Config: fmt.Sprintf(testTLSConfig_file_data, nc.ConnectedUrl(), caPEM),
-				Check: resource.ComposeTestCheckFunc(
-					testStreamExist(t, mgr, "TEST"),
-				),
-			},
-		},
-	})
-}
-
-func TestProviderWithTLSFromFile(t *testing.T) {
-	srv := createJSTLSServer(t, false)
-	defer srv.Shutdown()
-
-	caFile, cleanup, err := newTempPEMFile(caPEM)
-	if err != nil {
-		t.Fatalf("failed to create temp CA PEM: %s", err)
-	}
-	defer cleanup()
-
-	nc, err := nats.Connect(srv.ClientURL(), nats.RootCAs(caFile))
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-	defer nc.Close()
-
-	mgr, err := jsm.New(nc)
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-
-	resource.Test(t, resource.TestCase{
-		ProtoV5ProviderFactories: testJsProviders,
-		Steps: []resource.TestStep{
-			{
-				Config: fmt.Sprintf(testTLSConfig_file, nc.ConnectedUrl(), caFile),
-				Check: resource.ComposeTestCheckFunc(
-					testStreamExist(t, mgr, "TEST"),
-				),
-			},
-		},
-	})
-}
-
-func TestProviderWithClientTLSFromData(t *testing.T) {
-	srv := createJSTLSServer(t, true)
-	defer srv.Shutdown()
-
-	caFile, cleanupCa, err := newTempPEMFile(caPEM)
-	if err != nil {
-		t.Fatalf("failed to create temp CA PEM: %s", err)
-	}
-	defer cleanupCa()
-
-	certFile, cleanupCert, err := newTempPEMFile(certPEM)
-	if err != nil {
-		t.Fatalf("failed to create temp cert PEM: %s", err)
-	}
-	defer cleanupCert()
-
-	keyFile, cleanupKey, err := newTempPEMFile(keyPEM)
-	if err != nil {
-		t.Fatalf("failed to create temp key PEM: %s", err)
-	}
-	defer cleanupKey()
-
-	nc, err := nats.Connect(srv.ClientURL(), nats.RootCAs(caFile), nats.ClientCert(certFile, keyFile))
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-	defer nc.Close()
-
-	mgr, err := jsm.New(nc)
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-
-	resource.Test(t, resource.TestCase{
-		ProtoV5ProviderFactories: testJsProviders,
-		Steps: []resource.TestStep{
-			{
-				Config: fmt.Sprintf(testClientTLSConfig_file_data, nc.ConnectedUrl(), caPEM, certPEM, keyPEM),
-				Check: resource.ComposeTestCheckFunc(
-					testStreamExist(t, mgr, "TEST"),
-				),
-			},
-		},
-	})
-}
-
-func TestProviderWithClientTLSFromFile(t *testing.T) {
-	srv := createJSTLSServer(t, true)
-	defer srv.Shutdown()
-
-	caFile, cleanupCa, err := newTempPEMFile(caPEM)
-	if err != nil {
-		t.Fatalf("failed to create temp CA PEM: %s", err)
-	}
-	defer cleanupCa()
-
-	certFile, cleanupCert, err := newTempPEMFile(certPEM)
-	if err != nil {
-		t.Fatalf("failed to create temp cert PEM: %s", err)
-	}
-	defer cleanupCert()
-
-	keyFile, cleanupKey, err := newTempPEMFile(keyPEM)
-	if err != nil {
-		t.Fatalf("failed to create temp key PEM: %s", err)
-	}
-	defer cleanupKey()
-
-	nc, err := nats.Connect(srv.ClientURL(), nats.RootCAs(caFile), nats.ClientCert(certFile, keyFile))
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-	defer nc.Close()
-
-	mgr, err := jsm.New(nc)
-	if err != nil {
-		t.Fatalf("could not connect: %s", err)
-	}
-
-	resource.Test(t, resource.TestCase{
-		ProtoV5ProviderFactories: testJsProviders,
-		Steps: []resource.TestStep{
-			{
-				Config: fmt.Sprintf(testClientTLSConfig_file, nc.ConnectedUrl(), caFile, certFile, keyFile),
-				Check: resource.ComposeTestCheckFunc(
-					testStreamExist(t, mgr, "TEST"),
-				),
-			},
-		},
-	})
+	return path
 }

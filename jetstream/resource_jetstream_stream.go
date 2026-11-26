@@ -16,6 +16,7 @@ package jetstream
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -291,10 +292,12 @@ func resourceStream() *schema.Resource {
 				},
 			},
 			"placement_preferred": {
-				Type:        schema.TypeString,
-				Description: "A preferred server name to move the leader to",
-				Default:     "",
-				Optional:    true,
+				Type:             schema.TypeString,
+				Description:      "Deprecated",
+				Deprecated:       "placement_preferred is deprecated",
+				Default:          "",
+				Optional:         true,
+				ValidateDiagFunc: validatePlacementPreferred,
 			},
 			"subject_transform": {
 				Type:        schema.TypeList,
@@ -419,9 +422,28 @@ func resourceStream() *schema.Resource {
 		CustomizeDiff: customdiff.All(
 			customdiff.ForceNewIf("deny_delete", disablesFlag("deny_delete")),
 			customdiff.ForceNewIf("deny_purge", disablesFlag("deny_purge")),
-			validateSourceFilters,
+			forceNewOnMirrorChange,
+			validateSources,
 		),
 	}
+}
+
+func forceNewOnMirrorChange(_ context.Context, d *schema.ResourceDiff, _ any) error {
+	if d.Id() == "" {
+		return nil
+	}
+
+	for _, key := range d.GetChangedKeysPrefix("mirror") {
+		if strings.HasSuffix(key, ".#") || strings.HasSuffix(key, ".%") {
+			continue
+		}
+		err := d.ForceNew(key)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func disablesFlag(key string) customdiff.ResourceConditionFunc {
@@ -435,15 +457,15 @@ func disablesFlag(key string) customdiff.ResourceConditionFunc {
 }
 
 // The server rejects a source or mirror that sets both filter_subject and subject_transform.
-func validateSourceFilters(_ context.Context, d *schema.ResourceDiff, _ any) error {
+func validateSources(_ context.Context, d *schema.ResourceDiff, _ any) error {
 	for _, block := range []string{"mirror", "source"} {
 		for i, src := range d.Get(block).([]any) {
-			s, ok := src.(map[string]any)
-			if !ok {
-				continue
-			}
+			s := src.(map[string]any)
 			if s["filter_subject"].(string) != "" && len(s["subject_transform"].([]any)) > 0 {
 				return fmt.Errorf("%s.%d: filter_subject and subject_transform cannot both be set, use the subject_transform source as the filter", block, i)
+			}
+			if exts := s["external"].([]any); len(exts) > 0 && exts[0] == nil {
+				return fmt.Errorf("%s.%d: external requires api or deliver", block, i)
 			}
 		}
 	}
@@ -585,7 +607,6 @@ func resourceStreamRead(ctx context.Context, d *schema.ResourceData, m any) diag
 	if str.Configuration().Placement != nil {
 		d.Set("placement_cluster", str.Configuration().Placement.Cluster)
 		d.Set("placement_tags", str.Configuration().Placement.Tags)
-		d.Set("placement_preferred", str.Configuration().Placement.Preferred)
 	}
 
 	if str.IsMirror() {
